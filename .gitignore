@@ -1,26 +1,38 @@
-.idea/
-.vscode/
-.local-git-backups/
-
-# Local configuration and credentials
+# Local settings and credentials
 .env
 .env.*
 !.env.example
 auth.json
+.local-git-backups/
 
-# PHP / Laravel artifacts
-backend/vendor/
-backend/.phpunit.cache/
-backend/.phpunit.result.cache
+# Logs and local state
+logs/
+*.log
 backend/storage/logs/*.log
 backend/database/*.sqlite*
+backend/.phpunit.cache/
+backend/.phpunit.result.cache
 backend/bootstrap/cache/*.php
 
-# Frontend artifacts
+# Dependencies and generated output
+node_modules/
+backend/vendor/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+dist/
+dist-ssr/
+public/build/
+public/hot
 
-# OS files
+# IDE and operating system files
+.idea/
+.vscode/
+.fleet/
 .DS_Store
 Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
