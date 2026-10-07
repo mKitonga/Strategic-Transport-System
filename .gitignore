@@ -1,0 +1,26 @@
+.idea/
+.vscode/
+.local-git-backups/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+auth.json
+
+# PHP / Laravel artifacts
+backend/vendor/
+backend/.phpunit.cache/
+backend/.phpunit.result.cache
+backend/storage/logs/*.log
+backend/database/*.sqlite*
+backend/bootstrap/cache/*.php
+
+# Frontend artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS files
+.DS_Store
+Thumbs.db
