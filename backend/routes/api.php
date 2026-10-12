@@ -28,6 +28,8 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 Route::get('/health', [PublicController::class, 'health']);
 Route::get('/homepage', [PublicController::class, 'homepage']);
+Route::get('/complaints/options', [PublicController::class, 'getComplaintOptions']);
+Route::post('/complaints', [PublicController::class, 'submitComplaint']);
 Route::prefix('booking')->group(function () {
     Route::get('/companies', [BookingController::class, 'companies']);
     Route::get('/companies/{slug}', [BookingController::class, 'company']);

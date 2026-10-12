@@ -77,16 +77,22 @@ class PublicController extends Controller
 
         $bookingCompanies = DB::table('users')
             ->where('role', 'booking_admin')
+            ->whereNotNull('company_name')
             ->select('id', 'company_name')
             ->get()
             ->map(function ($admin) {
+                $company = collect(config('booking.companies'))
+                    ->first(fn ($item) => strcasecmp(trim($item['name']), trim($admin->company_name)) === 0);
+
                 return [
                     'name' => $admin->company_name,
-                    'routes' => DB::table('sacco_routes') 
-                        ->where('sacco_admin_id', $admin->id)
-                        ->pluck('route_name'),
+                    'routes' => collect($company['routes'] ?? [])
+                        ->pluck('name')
+                        ->values(),
                 ];
-            });
+            })
+            ->unique('name')
+            ->values();
 
         return response()->json([
             'saccos' => $saccos,

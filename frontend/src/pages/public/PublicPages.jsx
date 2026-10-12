@@ -282,15 +282,38 @@ export const PassengerComplaints = () => {
     message: ''
   });
   const [loading, setLoading] = React.useState(false);
+  const [optionsLoading, setOptionsLoading] = React.useState(true);
+  const [optionsError, setOptionsError] = React.useState('');
+  const [optionsRetry, setOptionsRetry] = React.useState(0);
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState(false);
 
   React.useEffect(() => {
+    let cancelled = false;
+    setOptionsLoading(true);
+    setOptionsError('');
+
     fetch('/api/complaints/options')
-      .then(res => res.json())
-      .then(data => setOptions(data))
-      .catch(err => console.error('Failed to load options', err));
-  }, []);
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'Could not load service operators.');
+        if (!cancelled) {
+          setOptions({
+            saccos: data.saccos || [],
+            schools: data.schools || [],
+            booking_companies: data.booking_companies || [],
+          });
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setOptionsError(err.message || 'Could not load service operators.');
+      })
+      .finally(() => {
+        if (!cancelled) setOptionsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [optionsRetry]);
 
   const handleTypeSelect = (type) => {
     setFormData({ ...formData, service_type: type, service_name: '', route_name: '', location: '' });
@@ -365,16 +388,16 @@ export const PassengerComplaints = () => {
         {step === 1 && (
           <div className="fade-in">
             <h3 style={{ marginBottom: '1.5rem', fontSize: '1.25rem' }}>Select Service Category</h3>
-            <div className="role-grid">
-              <button className={`role-card ${formData.service_type === 'sacco' ? 'active' : ''}`} onClick={() => handleTypeSelect('sacco')}>
+            <div className="complaint-category-grid">
+              <button type="button" aria-pressed={formData.service_type === 'sacco'} className={`complaint-category-card ${formData.service_type === 'sacco' ? 'active' : ''}`} onClick={() => handleTypeSelect('sacco')}>
                 <strong>SACCO Service</strong>
                 <span>Matatus & Urban Transit</span>
               </button>
-              <button className={`role-card ${formData.service_type === 'school' ? 'active' : ''}`} onClick={() => handleTypeSelect('school')}>
+              <button type="button" aria-pressed={formData.service_type === 'school'} className={`complaint-category-card ${formData.service_type === 'school' ? 'active' : ''}`} onClick={() => handleTypeSelect('school')}>
                 <strong>School Transport</strong>
                 <span>Student Pickup Services</span>
               </button>
-              <button className={`role-card ${formData.service_type === 'booking' ? 'active' : ''}`} onClick={() => handleTypeSelect('booking')}>
+              <button type="button" aria-pressed={formData.service_type === 'booking'} className={`complaint-category-card ${formData.service_type === 'booking' ? 'active' : ''}`} onClick={() => handleTypeSelect('booking')}>
                 <strong>Booking Service</strong>
                 <span>Long Distance Companies</span>
               </button>
@@ -387,16 +410,29 @@ export const PassengerComplaints = () => {
             <h3 style={{ marginBottom: '1.5rem', fontSize: '1.25rem' }}>Assign to Operator</h3>
             <div className="form-group">
               <label className="form-label">Select {formData.service_type === 'sacco' ? 'SACCO' : formData.service_type === 'school' ? 'School' : 'Company'}</label>
+              {optionsError && (
+                <div className="auth-feedback auth-feedback-error" role="alert">
+                  {optionsError}{' '}
+                  <button type="button" className="btn btn-outline" onClick={() => setOptionsRetry((retry) => retry + 1)}>Retry</button>
+                </div>
+              )}
               <select 
                 className="form-select" 
                 value={formData.service_name} 
+                disabled={optionsLoading || Boolean(optionsError)}
                 onChange={(e) => setFormData({ ...formData, service_name: e.target.value, route_name: '', location: '' })}
               >
-                <option value="">Choose operator...</option>
+                <option value="">
+                  {optionsLoading ? 'Loading operators...' : optionsError ? 'Unable to load operators' : 'Choose operator...'}
+                </option>
                 {formData.service_type === 'sacco' && options.saccos.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
-                {formData.service_type === 'school' && options.schools.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
+                {formData.service_type === 'school' && options.schools.map(s => <option key={`${s.name}-${s.locations?.[0] || ''}`} value={s.name}>{s.name}</option>)}
                 {formData.service_type === 'booking' && options.booking_companies.map(s => <option key={s.name} value={s.name}>{s.name}</option>)}
               </select>
+              {!optionsLoading && !optionsError && !(
+                formData.service_type === 'sacco' ? options.saccos.length :
+                  formData.service_type === 'school' ? options.schools.length : options.booking_companies.length
+              ) && <small className="page-subtitle">No registered operators are available for this category yet.</small>}
             </div>
 
             {formData.service_type === 'school' ? (

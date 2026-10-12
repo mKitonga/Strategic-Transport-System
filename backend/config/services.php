@@ -31,4 +31,11 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'africas_talking' => [
+        'username' => env('AT_USERNAME', 'sandbox'),
+        'api_key' => env('AT_API_KEY'),
+        'sender_id' => env('AT_SENDER_ID'),
+        'environment' => env('AT_ENV', 'sandbox'),
+    ],
+
 ];

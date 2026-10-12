@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\ComplaintResponseDelivery;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -461,6 +462,13 @@ class SaccoAdminController extends Controller
         $source = $validated['source_table'] ?? 'sacco_traditional';
 
         if ($source === 'passenger_unified') {
+            $complaint = DB::table('passenger_complaints')
+                ->where('id', $complaintId)
+                ->where('assigned_admin_id', $admin->id)
+                ->first();
+
+            abort_unless($complaint, 404, 'Complaint not found for this SACCO admin.');
+
             DB::table('passenger_complaints')
                 ->where('id', $complaintId)
                 ->where('assigned_admin_id', $admin->id)
@@ -472,6 +480,13 @@ class SaccoAdminController extends Controller
                     'updated_at' => now(),
                 ]);
         } else {
+            $complaint = DB::table('sacco_complaints')
+                ->where('id', $complaintId)
+                ->where('route_name', $admin->route_name)
+                ->first();
+
+            abort_unless($complaint, 404, 'Complaint not found for this SACCO admin.');
+
             DB::table('sacco_complaints')
                 ->where('id', $complaintId)
                 ->where('route_name', $admin->route_name)
@@ -484,8 +499,14 @@ class SaccoAdminController extends Controller
                 ]);
         }
 
+        $delivery = app(ComplaintResponseDelivery::class)->send(
+            $complaint,
+            $validated['response_message']
+        );
+
         return response()->json([
-            'message' => 'Complaint response sent successfully.',
+            'message' => 'Complaint response saved and delivery attempted.',
+            'delivery' => $delivery,
         ]);
     }
 

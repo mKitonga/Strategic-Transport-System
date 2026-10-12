@@ -1025,6 +1025,57 @@ a {
   min-height: 90px;
 }
 
+.complaint-category-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.complaint-category-card {
+  display: flex;
+  min-width: 0;
+  min-height: 116px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-bg-soft);
+  color: var(--color-text-main);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--transition-normal), background var(--transition-normal), transform var(--transition-normal);
+}
+
+.complaint-category-card strong {
+  font-size: 1rem;
+}
+
+.complaint-category-card span {
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.complaint-category-card:hover {
+  border-color: var(--color-brand);
+  transform: translateY(-2px);
+}
+
+.complaint-category-card.active {
+  border-color: var(--color-brand);
+  background: rgba(255, 206, 0, 0.09);
+  box-shadow: 0 0 0 1px var(--color-brand);
+}
+
+.complaint-category-card:focus-visible {
+  outline: 3px solid var(--color-teal);
+  outline-offset: 3px;
+}
+
 .compact-ops .operations-panel {
   padding: 16px;
 }
@@ -1088,6 +1139,7 @@ a {
   }
 
   .auth-grid-two,
+  .complaint-category-grid,
   .role-stats-grid,
   .role-middle-grid,
   .transport-pulse-grid,

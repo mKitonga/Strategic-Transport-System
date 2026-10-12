@@ -548,6 +548,7 @@ export const ComplaintsAdmin = () => {
   const [complaints, setComplaints] = useState([]);
   const [responses, setResponses] = useState({});
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   const loadComplaints = async () => {
     try {
@@ -564,10 +565,17 @@ export const ComplaintsAdmin = () => {
 
   const handleRespond = async (complaintId, sourceTable) => {
     try {
-      await respondToComplaint(complaintId, { 
+      setError('');
+      setNotice('');
+      const result = await respondToComplaint(complaintId, {
         response_message: responses[complaintId] || '',
         source_table: sourceTable
       });
+      const deliverySummary = Object.entries(result.delivery || {})
+        .map(([channel, delivery]) => `${channel.toUpperCase()}: ${(delivery.status || 'unknown').replace(/_/g, ' ')}`)
+        .join(' | ');
+      setNotice(`${result.message}${deliverySummary ? ` ${deliverySummary}.` : ''}`);
+      setResponses((current) => ({ ...current, [complaintId]: '' }));
       await loadComplaints();
     } catch (requestError) {
       setError(requestError.message);
@@ -577,8 +585,9 @@ export const ComplaintsAdmin = () => {
   return (
     <div>
       <h1 className="page-title">Route Complaints</h1>
-      <p className="page-subtitle">Only complaints directed to your route are displayed here, and you can respond directly to the passenger phone number provided.</p>
+      <p className="page-subtitle">Only complaints directed to your route are displayed here. Responses are saved and sent to the passenger's available contact details.</p>
       {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
+      {notice ? <p className="auth-feedback" role="status">{notice}</p> : null}
 
       <div className="card-grid">
         {complaints.length === 0 ? (
@@ -594,7 +603,8 @@ export const ComplaintsAdmin = () => {
               <StatusBadge value={complaint.status} />
             </div>
             <p><strong>Route:</strong> {complaint.route_name}</p>
-            <p><strong>Passenger Phone:</strong> {complaint.passenger_phone}</p>
+            {complaint.passenger_phone ? <p><strong>Passenger Phone:</strong> {complaint.passenger_phone}</p> : null}
+            {complaint.passenger_email ? <p><strong>Passenger Email:</strong> {complaint.passenger_email}</p> : null}
             <div className="route-map-card" style={{ marginTop: '1rem' }}>
               <strong>Complaint Message</strong>
               <p>{complaint.message}</p>
@@ -603,7 +613,7 @@ export const ComplaintsAdmin = () => {
             <textarea
               className="form-input complaint-box"
               placeholder="Type your direct response to the passenger here..."
-              value={responses[complaint.id] || complaint.response_message || ''}
+              value={responses[complaint.id] ?? complaint.response_message ?? ''}
               onChange={(event) => setResponses((current) => ({ ...current, [complaint.id]: event.target.value }))}
               style={{ marginTop: '1rem' }}
             />
