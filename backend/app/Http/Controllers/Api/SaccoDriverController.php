@@ -169,7 +169,8 @@ class SaccoDriverController extends Controller
         $mpesaReference = 'FARE' . Str::upper(Str::random(8));
 
         // Trigger M-Pesa STK push
-        $promptStatus = 'prompt_requested';
+        $promptStatus = 'stk_failed';
+        $darajaError = null;
         try {
             $daraja = new DarajaService();
             $stkResponse = $daraja->initiateStkPush(
@@ -181,8 +182,11 @@ class SaccoDriverController extends Controller
 
             if ($stkResponse && isset($stkResponse['CheckoutRequestID'])) {
                 $promptStatus = 'stk_sent';
+            } else {
+                $darajaError = $daraja->lastError() ?? 'Daraja did not return a CheckoutRequestID.';
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            $darajaError = 'An unexpected error stopped the Daraja request. Check the backend logs.';
             Log::error('Daraja STK push exception: ' . $e->getMessage());
         }
 
@@ -201,14 +205,14 @@ class SaccoDriverController extends Controller
 
         $message = $promptStatus === 'stk_sent'
             ? 'M-Pesa prompt sent! Ask the passenger to enter their PIN.'
-            : 'Fare prompt recorded. M-Pesa prompt could not be sent — check Daraja credentials.';
+            : 'Fare recorded, but the M-Pesa prompt failed: '.$darajaError;
 
         return response()->json([
             'message' => $message,
             'fare_applied' => $fareAmount,
             'period' => $isPeak ? 'peak' : 'off-peak',
             'payment' => DB::table('sacco_passenger_payments')->where('id', $paymentId)->first(),
-        ], 201);
+        ], $promptStatus === 'stk_sent' ? 201 : 502);
     }
 
     public function dropoffs(Request $request): JsonResponse
