@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { getStoredSession } from '../../../services/transportApi';
 import { getRoleDashboard } from './roleDashboardData';
+import useRoleDashboardStats from './useRoleDashboardStats';
 
 export const Profile = () => {
   const { user } = getStoredSession();
@@ -66,6 +67,11 @@ export const Profile = () => {
 export const Statistics = () => {
   const { user } = getStoredSession();
   const roleMeta = getRoleDashboard(user?.role);
+  const { stats, loading, error } = useRoleDashboardStats();
+  const roleStats = roleMeta.stats.map((stat) => ({
+    ...stat,
+    value: loading ? '…' : error ? '—' : (stats?.[stat.key] ?? '—'),
+  }));
 
   return (
     <div>
@@ -73,13 +79,14 @@ export const Statistics = () => {
       <p className="page-subtitle">Focused statistics for {roleMeta.portalName}.</p>
 
       <div className="role-stats-grid" style={{ marginTop: '1.25rem' }}>
-        {roleMeta.stats.map((stat) => (
+        {roleStats.map((stat) => (
           <article key={stat.label} className={`role-stat-card ${stat.tone || ''}`}>
             <span>{stat.label}</span>
             <strong>{stat.value}</strong>
           </article>
         ))}
       </div>
+      {error && <p role="alert" className="page-subtitle" style={{ color: 'var(--color-danger)', marginTop: '1rem' }}>{error} Statistics could not be refreshed.</p>}
     </div>
   );
 };

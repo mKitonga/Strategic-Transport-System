@@ -37,6 +37,26 @@ class PublicController extends Controller
             ])
             ->values();
 
+        $activeSchoolProfiles = DB::table('users')
+            ->where('role', 'school_admin')
+            ->where('status', 'active')
+            ->get(['school_name', 'location'])
+            ->unique(fn ($admin) => strtolower(trim(($admin->school_name ?? '').'|'.($admin->location ?? ''))))
+            ->count();
+
+        $featuredRoutes = DB::table('sacco_routes as routes')
+            ->join('users as admins', 'admins.id', '=', 'routes.sacco_admin_id')
+            ->where('admins.role', 'sacco_admin')
+            ->where('admins.status', 'active')
+            ->orderBy('routes.route_name')
+            ->limit(3)
+            ->get([
+                'routes.id',
+                'routes.route_name',
+                'routes.location',
+                'routes.sacco_name',
+            ]);
+
         return response()->json([
             'system_name' => 'Strategic Transport System',
             'homepage_links' => config('transport.homepage_links'),
@@ -44,6 +64,79 @@ class PublicController extends Controller
             'roles' => $roles,
             'concepts' => config('transport.concepts'),
             'deferred_note' => config('transport.deferred_note'),
+            'public_stats' => [
+                'active_saccos' => DB::table('users')->where('role', 'sacco_admin')->where('status', 'active')->count(),
+                'partner_schools' => $activeSchoolProfiles,
+                'registered_routes' => DB::table('sacco_routes')
+                    ->join('users as admins', 'admins.id', '=', 'sacco_routes.sacco_admin_id')
+                    ->where('admins.role', 'sacco_admin')
+                    ->where('admins.status', 'active')
+                    ->count(),
+            ],
+            'featured_routes' => $featuredRoutes,
+        ]);
+    }
+
+    public function directories(): JsonResponse
+    {
+        $saccoAdmins = DB::table('users')
+            ->where('role', 'sacco_admin')
+            ->where('status', 'active')
+            ->orderBy('sacco_name')
+            ->get(['id', 'name', 'email', 'phone', 'sacco_name', 'location']);
+        $saccoRoutes = DB::table('sacco_routes')
+            ->whereIn('sacco_admin_id', $saccoAdmins->pluck('id'))
+            ->orderBy('route_name')
+            ->get();
+        $saccoTerminals = DB::table('route_terminals')
+            ->whereIn('sacco_route_id', $saccoRoutes->pluck('id'))
+            ->orderBy('terminal_order')
+            ->get()
+            ->groupBy('sacco_route_id');
+
+        $schoolAdmins = DB::table('users')
+            ->where('role', 'school_admin')
+            ->where('status', 'active')
+            ->orderBy('school_name')
+            ->orderBy('location')
+            ->get(['id', 'name', 'email', 'phone', 'school_name', 'location']);
+        $schoolRoutes = DB::table('school_routes')
+            ->whereIn('school_admin_id', $schoolAdmins->pluck('id'))
+            ->orderBy('route_name')
+            ->get();
+        $schoolTerminals = DB::table('school_route_terminals')
+            ->whereIn('school_route_id', $schoolRoutes->pluck('id'))
+            ->orderBy('terminal_order')
+            ->get()
+            ->groupBy('school_route_id');
+
+        return response()->json([
+            'saccos' => $saccoAdmins->map(fn ($admin) => [
+                'id' => $admin->id,
+                'name' => $admin->sacco_name,
+                'location' => $admin->location,
+                'admin' => $admin->name,
+                'phone' => $admin->phone,
+                'email' => $admin->email,
+                'routes' => $saccoRoutes->where('sacco_admin_id', $admin->id)->map(fn ($route) => [
+                    'id' => $route->id,
+                    'name' => $route->route_name,
+                    'terminals' => ($saccoTerminals->get($route->id) ?? collect())->pluck('terminal_name')->values(),
+                ])->values(),
+            ])->values(),
+            'schools' => $schoolAdmins->map(fn ($admin) => [
+                'id' => $admin->id,
+                'name' => $admin->school_name,
+                'location' => $admin->location,
+                'admin' => $admin->name,
+                'phone' => $admin->phone,
+                'email' => $admin->email,
+                'routes' => $schoolRoutes->where('school_admin_id', $admin->id)->map(fn ($route) => [
+                    'id' => $route->id,
+                    'name' => $route->route_name,
+                    'terminals' => ($schoolTerminals->get($route->id) ?? collect())->pluck('terminal_name')->values(),
+                ])->values(),
+            ])->values(),
         ]);
     }
 

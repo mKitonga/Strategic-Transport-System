@@ -1,36 +1,39 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as tt from '@tomtom-international/web-sdk-maps';
 import '@tomtom-international/web-sdk-maps/dist/maps.css';
 
 const TrafficMap = ({ center = [36.8219, -1.2921], zoom = 12 }) => { // Default to Nairobi
   const mapElement = useRef(null);
   const map = useRef(null);
+  const [mapError, setMapError] = useState('');
 
   useEffect(() => {
     const apiKey = import.meta.env.VITE_TOMTOM_API_KEY;
     if (!apiKey) {
-      console.error('TomTom API key is missing');
+      setMapError('TomTom map key is missing. Set VITE_TOMTOM_API_KEY in frontend/.env.local and restart Vite.');
       return;
     }
 
-    if (map.current) return; // Initialize map only once
+    setMapError('');
+    try {
+      map.current = tt.map({
+        key: apiKey,
+        container: mapElement.current,
+        center,
+        zoom,
+      });
 
-    map.current = tt.map({
-      key: apiKey,
-      container: mapElement.current,
-      center: center,
-      zoom: zoom,
-    });
-
-    map.current.on('load', () => {
-      // Enable traffic flow and incidents by default to give real-time feedback
-      map.current.showTrafficFlow();
-      // To show traffic incidents, you would need the services SDK as well, 
-      // but flow is enough for real-time visual feedback of traffic jams.
-    });
-
-    // Add navigation controls
-    map.current.addControl(new tt.NavigationControl());
+      map.current.on('load', () => {
+        map.current?.showTrafficFlow();
+        map.current?.showTrafficIncidents();
+      });
+      map.current.on('error', (event) => {
+        setMapError(event?.error?.message || 'TomTom could not load map or traffic data. Check the key products and domain restrictions.');
+      });
+      map.current.addControl(new tt.NavigationControl());
+    } catch (error) {
+      setMapError(error.message || 'TomTom map could not be initialized.');
+    }
 
     return () => {
       if (map.current) {
@@ -38,13 +41,17 @@ const TrafficMap = ({ center = [36.8219, -1.2921], zoom = 12 }) => { // Default 
         map.current = null;
       }
     };
-  }, [center, zoom]);
+  }, [center[0], center[1], zoom]);
 
   return (
-    <div 
-      ref={mapElement} 
-      style={{ height: '100%', width: '100%', minHeight: '300px', borderRadius: '8px' }} 
-    />
+    <div>
+      <div
+        ref={mapElement}
+        aria-label="TomTom map with live traffic flow and incidents"
+        style={{ height: '100%', width: '100%', minHeight: '300px', borderRadius: '8px' }}
+      />
+      {mapError && <p role="alert" style={{ color: 'var(--color-danger)', marginTop: '0.75rem' }}>{mapError}</p>}
+    </div>
   );
 };
 

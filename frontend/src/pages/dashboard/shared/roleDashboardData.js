@@ -3,10 +3,10 @@ export const roleDashboardData = {
     portalName: 'SACCO Admin',
     summary: 'Oversee SACCO routes, approve drivers, coordinate queues, and manage public transport operations.',
     stats: [
-      { label: 'Pending Driver Approvals', value: '12', tone: 'amber' },
-      { label: 'Active Routes', value: '18', tone: 'teal' },
-      { label: 'Fare Reviews', value: '6', tone: 'green' },
-      { label: 'Open Complaints', value: '4', tone: 'danger' },
+      { label: 'Pending Driver Approvals', key: 'pending_driver_approvals', tone: 'amber' },
+      { label: 'Routes Registered', key: 'active_routes', tone: 'teal' },
+      { label: 'Drivers Waiting in Queue', key: 'queue_waiting', tone: 'green' },
+      { label: 'Open Complaints', key: 'open_complaints', tone: 'danger' },
     ],
     highlights: [
       'Approve new drivers and confirm the SACCO they belong to.',
@@ -18,10 +18,10 @@ export const roleDashboardData = {
     portalName: 'SACCO Driver',
     summary: 'Track fares, announce arrivals, manage passenger drop-offs, and support student transport duties.',
     stats: [
-      { label: 'Trips Today', value: '9', tone: 'teal' },
-      { label: 'Collected Fares', value: 'KES 12,600', tone: 'green' },
-      { label: 'Arrival Alerts', value: '3', tone: 'amber' },
-      { label: 'Drop-off Points', value: '21', tone: 'danger' },
+      { label: 'Fare Prompts', key: 'fare_prompts', tone: 'teal' },
+      { label: 'Uncleared Fare Records', key: 'pending_dropoffs', tone: 'green' },
+      { label: 'Queue Entries', key: 'queue_alerts', tone: 'amber' },
+      { label: 'School Assignments', key: 'school_assignments', tone: 'danger' },
     ],
     highlights: [
       'View fares set for your assigned routes.',
@@ -33,10 +33,10 @@ export const roleDashboardData = {
     portalName: 'School Admin',
     summary: 'Monitor school transport, approve drivers, organize student trips, and communicate with SACCO operators.',
     stats: [
-      { label: 'Assigned Drivers', value: '8', tone: 'teal' },
-      { label: 'Active Student Trips', value: '14', tone: 'green' },
-      { label: 'Pending Payments', value: 'KES 36,000', tone: 'amber' },
-      { label: 'Driver Alerts', value: '5', tone: 'danger' },
+      { label: 'Drivers Awaiting Approval', key: 'pending_drivers', tone: 'teal' },
+      { label: 'Published Trips', key: 'published_trips', tone: 'green' },
+      { label: 'Payments Awaiting Review', key: 'pending_payments', tone: 'amber' },
+      { label: 'Open Transport Alerts', key: 'open_alerts', tone: 'danger' },
     ],
     highlights: [
       'Approve or reject school driver requests.',
@@ -48,10 +48,9 @@ export const roleDashboardData = {
     portalName: 'School Driver',
     summary: 'Handle assigned school trips, follow admin instructions, and support student pickup and drop-off visibility.',
     stats: [
-      { label: 'Assigned Trips', value: '7', tone: 'teal' },
-      { label: 'Students Onboard', value: '143', tone: 'green' },
-      { label: 'Admin Alerts', value: '2', tone: 'amber' },
-      { label: 'Route Stops', value: '16', tone: 'danger' },
+      { label: 'Assigned Trips', key: 'assigned_trips', tone: 'teal' },
+      { label: 'Assigned Students', key: 'assigned_students', tone: 'green' },
+      { label: 'Alerts Sent to Admin', key: 'alerts_sent', tone: 'amber' },
     ],
     highlights: [
       'Review assigned school trips and route plans.',
@@ -63,10 +62,10 @@ export const roleDashboardData = {
     portalName: 'Parent Portal',
     summary: 'Follow your child’s school transport, review routes, receive notifications, and track payments.',
     stats: [
-      { label: 'Registered Children', value: '2', tone: 'teal' },
-      { label: 'Trips This Week', value: '10', tone: 'green' },
-      { label: 'Pending Payments', value: 'KES 4,800', tone: 'amber' },
-      { label: 'Unread Notices', value: '3', tone: 'danger' },
+      { label: 'Student Profile', key: 'student_profile', tone: 'teal' },
+      { label: 'Available School Trips', key: 'available_trips', tone: 'green' },
+      { label: 'Payments Awaiting Review', key: 'pending_payments', tone: 'amber' },
+      { label: 'Trip Assignments', key: 'assignments', tone: 'danger' },
     ],
     highlights: [
       'Register children and attach their school details.',
@@ -78,10 +77,10 @@ export const roleDashboardData = {
     portalName: 'Booking Admin',
     summary: 'Manage booking companies, route fares, buses, drivers, and passenger operations.',
     stats: [
-      { label: 'Booking Drivers', value: '11', tone: 'teal' },
-      { label: 'Published Routes', value: '23', tone: 'green' },
-      { label: 'Buses Available', value: '15', tone: 'amber' },
-      { label: 'Passenger Issues', value: '6', tone: 'danger' },
+      { label: 'Companies in Booking Catalog', key: 'companies', tone: 'teal' },
+      { label: 'Routes in Booking Catalog', key: 'routes', tone: 'green' },
+      { label: 'Trips in Booking Catalog', key: 'trips', tone: 'amber' },
+      { label: 'Open Booking Complaints', key: 'open_complaints', tone: 'danger' },
     ],
     highlights: [
       'Approve booking drivers and review bus assignments.',
@@ -93,10 +92,9 @@ export const roleDashboardData = {
     portalName: 'Booking Driver',
     summary: 'See assigned trips, passenger manifests, and notify booking admins when you arrive for reassignment.',
     stats: [
-      { label: 'Assigned Trips', value: '5', tone: 'teal' },
-      { label: 'Passengers Listed', value: '117', tone: 'green' },
-      { label: 'Arrival Notices', value: '2', tone: 'amber' },
-      { label: 'Open Seats', value: '14', tone: 'danger' },
+      { label: 'Assigned Trips', key: 'assigned_trips', tone: 'teal' },
+      { label: 'Passengers Listed', key: 'passengers', tone: 'green' },
+      { label: 'Routes Assigned', key: 'route_assignments', tone: 'amber' },
     ],
     highlights: [
       'Check all trips assigned to you.',
@@ -108,10 +106,10 @@ export const roleDashboardData = {
     portalName: 'Passenger Portal',
     summary: 'Browse booking companies, compare routes and fares, choose seats, and manage ticket activity.',
     stats: [
-      { label: 'Saved Companies', value: '4', tone: 'teal' },
-      { label: 'Upcoming Trips', value: '3', tone: 'green' },
-      { label: 'Pending Payments', value: '1', tone: 'amber' },
-      { label: 'Tickets Booked', value: '9', tone: 'danger' },
+      { label: 'Companies Available', key: 'companies', tone: 'teal' },
+      { label: 'Routes Available', key: 'routes', tone: 'green' },
+      { label: 'Trips Available', key: 'trips', tone: 'amber' },
+      { label: 'Bookings Stored for Account', key: 'stored_bookings', tone: 'danger' },
     ],
     highlights: [
       'Explore registered booking companies and fares.',

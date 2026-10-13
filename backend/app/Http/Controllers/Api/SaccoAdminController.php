@@ -23,7 +23,14 @@ class SaccoAdminController extends Controller
                 'pending_driver_approvals' => (clone $driverBase)->where('status', 'pending_approval')->count(),
                 'active_routes' => DB::table('sacco_routes')->where('sacco_admin_id', $admin->id)->count(),
                 'queue_waiting' => DB::table('driver_queue_entries')->where('sacco_admin_id', $admin->id)->where('status', 'waiting')->count(),
-                'open_complaints' => DB::table('sacco_complaints')->where('route_name', $admin->route_name)->where('status', 'open')->count(),
+                'open_complaints' => DB::table('sacco_complaints')
+                    ->where('route_name', $admin->route_name)
+                    ->where('status', 'open')
+                    ->count()
+                    + DB::table('passenger_complaints')
+                        ->where('assigned_admin_id', $admin->id)
+                        ->where('status', 'open')
+                        ->count(),
             ],
         ]);
     }

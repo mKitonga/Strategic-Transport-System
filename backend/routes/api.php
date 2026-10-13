@@ -28,6 +28,7 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 
 Route::get('/health', [PublicController::class, 'health']);
 Route::get('/homepage', [PublicController::class, 'homepage']);
+Route::get('/directories', [PublicController::class, 'directories']);
 Route::get('/complaints/options', [PublicController::class, 'getComplaintOptions']);
 Route::post('/complaints', [PublicController::class, 'submitComplaint']);
 Route::prefix('booking')->group(function () {

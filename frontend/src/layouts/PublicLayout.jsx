@@ -65,7 +65,7 @@ export default function PublicLayout() {
             <h1 className="stage-title">Public mobility, route discovery, and booking access</h1>
           </div>
           <div className="stage-status">
-            <span className="status-pill live">Live network</span>
+            <span className="status-pill live">Public overview</span>
             <span className="status-pill amber">Kenya routes</span>
           </div>
         </header>

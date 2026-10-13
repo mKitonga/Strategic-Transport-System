@@ -1,15 +1,21 @@
 import React from 'react';
 import { getStoredSession } from '../../services/transportApi';
 import { getRoleDashboard } from './shared/roleDashboardData';
+import useRoleDashboardStats from './shared/useRoleDashboardStats';
 
 export default function DashboardHome() {
   const { user } = getStoredSession();
   const roleMeta = getRoleDashboard(user?.role);
+  const { stats, loading, error } = useRoleDashboardStats();
+  const roleStats = roleMeta.stats.map((stat) => ({
+    ...stat,
+    value: loading ? '…' : error ? '—' : (stats?.[stat.key] ?? '—'),
+  }));
 
   return (
     <div className="role-dashboard-home">
       <section className="role-stats-grid">
-        {roleMeta.stats.map((stat) => (
+        {roleStats.map((stat) => (
           <article key={stat.label} className={`role-stat-card ${stat.tone || ''}`}>
             <span>{stat.label}</span>
             <strong>{stat.value}</strong>
@@ -33,16 +39,17 @@ export default function DashboardHome() {
         </article>
 
         <article className="card role-activity-card">
-          <p className="stage-eyebrow">Current Statistics</p>
-          <h3>Today&apos;s Snapshot</h3>
+          <p className="stage-eyebrow">Live Account Data</p>
+          <h3>Current Snapshot</h3>
           <div className="role-mini-stats">
-            {roleMeta.stats.slice(0, 3).map((stat) => (
+            {roleStats.slice(0, 3).map((stat) => (
               <div key={stat.label} className="role-mini-stat">
                 <span>{stat.label}</span>
                 <strong>{stat.value}</strong>
               </div>
             ))}
           </div>
+          {error && <p role="alert" className="page-subtitle" style={{ color: 'var(--color-danger)', marginTop: '1rem' }}>{error} Statistics could not be refreshed.</p>}
         </article>
       </section>
     </div>

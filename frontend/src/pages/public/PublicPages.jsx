@@ -1,60 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-
-const transportPulse = [
-  { label: 'Active SACCOs', value: '150+', note: 'Verified route operators' },
-  { label: 'Partner Schools', value: '450+', note: 'Mapped to school transport zones' },
-  { label: 'Daily Riders', value: '12K+', note: 'Passengers moving through the system' },
-  { label: 'Tracked Routes', value: '50+', note: 'Live public and booking corridors' },
-];
-
-const trafficData = [
-  { corridor: 'A104 / Waiyaki Way', condition: 'Heavy traffic', eta: '30 min delay', detail: 'Congestion building near Westlands roundabout.' },
-  { corridor: 'Thika Superhighway', condition: 'Smooth movement', eta: 'On schedule', detail: 'Outbound lanes are flowing with minimal interruption.' },
-  { corridor: 'Ngong Road', condition: 'Moderate traffic', eta: '12 min delay', detail: 'School pickup traffic near Adams Arcade.' },
-];
-
-const saccos = [
-  {
-    name: 'Super Metro SACCO',
-    routes: ['CBD - Kikuyu', 'CBD - Waiyaki Way'],
-    location: 'Railways stage',
-    admin: 'Grace Muthoni',
-    phone: '+254700000000',
-    email: 'admin@supermetro.co.ke',
-  },
-  {
-    name: 'Embassava SACCO',
-    routes: ['CBD - Rongai', 'CBD - Ngong'],
-    location: 'Tea Room terminal',
-    admin: 'Kevin Otieno',
-    phone: '+254711222333',
-    email: 'kevin@embassava.co.ke',
-  },
-];
-
-const schools = [
-  {
-    name: 'Nairobi Primary School',
-    location: 'Kilimani',
-    admin: 'Esther Akinyi',
-    phone: '+254722345678',
-    email: 'info@nps.ac.ke',
-  },
-  {
-    name: 'Riverside Academy',
-    location: 'Ruiru',
-    admin: 'Patrick Maina',
-    phone: '+254733456789',
-    email: 'admin@riversideacademy.ac.ke',
-  },
-];
-
-const bookingCompanies = [
-  { name: 'Ena Coach', route: 'Nairobi - Mombasa - Malindi', fare: 'From KES 1,500' },
-  { name: 'Tahmeed Coach', route: 'Nairobi - Mombasa', fare: 'From KES 1,800' },
-  { name: 'Modern Coast', route: 'Nairobi - Kisumu', fare: 'From KES 1,200' },
-];
+import { fetchHomepage, fetchPublicDirectories } from '../../services/transportApi';
+import { fetchBookingCompanies, fetchBookingCompany } from '../../services/bookingApi';
+import TrafficMap from '../dashboard/shared/TrafficMap';
 
 const SectionIntro = ({ eyebrow, title, body }) => (
   <div className="section-intro">
@@ -64,14 +12,50 @@ const SectionIntro = ({ eyebrow, title, body }) => (
   </div>
 );
 
-export const Home = () => (
+function usePublicDirectories() {
+  const [directories, setDirectories] = useState({ saccos: [], schools: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    fetchPublicDirectories()
+      .then((data) => { if (active) setDirectories(data); })
+      .catch((requestError) => { if (active) setError(requestError.message || 'Could not load the public directory.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  return { directories, loading, error };
+}
+
+export const Home = () => {
+  const [overview, setOverview] = useState(null);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    fetchHomepage()
+      .then((data) => { if (active) setOverview(data); })
+      .catch((error) => { if (active) setLoadError(error.message || 'Could not load Control Deck data.'); });
+    return () => { active = false; };
+  }, []);
+
+  const stats = overview?.public_stats;
+  const pulse = [
+    { label: 'Active SACCOs', value: stats?.active_saccos, note: 'Active SACCO administrator accounts' },
+    { label: 'Partner Schools', value: stats?.partner_schools, note: 'Active school and location profiles' },
+    { label: 'Registered SACCO Routes', value: stats?.registered_routes, note: 'Routes registered in the backend' },
+  ];
+
+  return (
   <div className="public-page home-page" style={{ padding: '0.5rem' }}>
     <section className="transit-hero" style={{ padding: '1.5rem', minHeight: '320px', marginBottom: '0.75rem' }}>
       <div className="transit-hero-copy">
         <p className="stage-eyebrow">Gateway</p>
         <h2 style={{ fontSize: '1.75rem', lineHeight: 1.2, marginBottom: '0.5rem' }}>Strategic Transport Command</h2>
         <p style={{ fontSize: '0.9rem', marginBottom: '1rem', maxWidth: '480px' }}>
-          One desk for public movement, school coordination, and booking access. Use the sidebar to monitor traffic and verified operators.
+          One desk for public movement, school coordination, and booking access. The figures and configured routes below come from the backend.
         </p>
         <div className="hero-actions" style={{ gap: '0.5rem' }}>
           <Link to="/auth/register" className="nav-btn nav-btn-primary" style={{ padding: '0.5rem 1rem' }}>Create Account</Link>
@@ -81,31 +65,30 @@ export const Home = () => (
       <div className="route-map-card" style={{ padding: '1rem' }}>
         <div className="route-map-header" style={{ marginBottom: '0.75rem' }}>
           <strong>Network Grid</strong>
-          <span>Live Map Overview</span>
+          <span>Routes from the backend</span>
         </div>
-        <div className="route-lines" style={{ gap: '0.4rem' }}>
-          <div className="route-line amber" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>
-            <span>CBD</span><span>Kikuyu</span>
+        {loadError ? <p role="alert">{loadError}</p> : overview && overview.featured_routes?.length ? (
+          <div className="route-lines" style={{ gap: '0.4rem' }}>
+            {overview.featured_routes.map((route, index) => (
+              <div className={`route-line ${['amber', 'teal', 'green'][index % 3]}`} key={route.id} style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>
+                <span>{route.route_name}</span><span>{route.location || route.sacco_name}</span>
+              </div>
+            ))}
           </div>
-          <div className="route-line teal" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>
-            <span>Kilimani</span><span>Thika</span>
-          </div>
-          <div className="route-line green" style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem' }}>
-            <span>Nairobi</span><span>Mombasa</span>
-          </div>
-        </div>
+        ) : <p>{overview ? 'No routes are currently registered for active SACCOs.' : 'Loading registered routes...'}</p>}
       </div>
     </section>
 
     <section className="transport-pulse-grid" style={{ gap: '0.5rem', marginBottom: '0.75rem' }}>
-      {transportPulse.map((item) => (
+      {pulse.map((item) => (
         <article className="transport-pulse-card" key={item.label} style={{ padding: '0.75rem' }}>
           <span style={{ fontSize: '0.7rem' }}>{item.label}</span>
-          <strong style={{ fontSize: '1.25rem' }}>{item.value}</strong>
+          <strong style={{ fontSize: '1.25rem' }}>{item.value ?? (loadError ? 'Unavailable' : 'Loading...')}</strong>
           <p style={{ fontSize: '0.75rem', marginTop: '0.2rem' }}>{item.note}</p>
         </article>
       ))}
     </section>
+    {loadError && <p role="alert" className="page-subtitle" style={{ color: 'var(--color-danger)' }}>{loadError}</p>}
 
     <section className="operations-split compact-ops" style={{ gap: '0.5rem' }}>
       <div className="operations-panel" style={{ padding: '1rem' }}>
@@ -132,76 +115,82 @@ export const Home = () => (
       </div>
     </section>
   </div>
-);
+  );
+};
 
 export const TrafficUpdates = () => (
   <div className="public-page">
     <SectionIntro
       eyebrow="Traffic Updates"
-      title="Live corridor conditions for passengers and operators"
-      body="Use these updates before dispatching vehicles, assigning routes, or leaving for a trip."
+      title="Live traffic flow and incidents around Nairobi"
+      body="TomTom traffic flow and incident overlays update on the map. Pan or zoom to inspect other covered areas."
     />
-    <div className="info-grid">
-      {trafficData.map((item) => (
-        <article className="info-card" key={item.corridor}>
-          <div className="info-topline">
-            <strong>{item.corridor}</strong>
-            <span className="status-pill amber">{item.condition}</span>
-          </div>
-          <p><strong>Expected effect:</strong> {item.eta}</p>
-          <p>{item.detail}</p>
-        </article>
-      ))}
+    <div className="info-card" style={{ padding: 0, overflow: 'hidden' }}>
+      <TrafficMap center={[36.8219, -1.2921]} zoom={11} />
     </div>
   </div>
 );
 
-export const SaccosList = () => (
-  <div className="public-page">
+export const SaccosList = () => {
+  const { directories, loading, error } = usePublicDirectories();
+  return <div className="public-page">
     <SectionIntro
       eyebrow="SACCO Directory"
       title="Registered SACCOs, routes, and administrator contacts"
       body="Passengers and new users can inspect verified public transport operators before using the system."
     />
     <div className="info-grid">
-      {saccos.map((sacco) => (
-        <article className="info-card" key={sacco.name}>
+      {directories.saccos.map((sacco) => (
+        <article className="info-card" key={sacco.id}>
           <div className="info-topline">
             <strong>{sacco.name}</strong>
-            <span className="status-pill live">{sacco.location}</span>
+            <span className="status-pill live">{sacco.location || 'Location not provided'}</span>
           </div>
-          <p><strong>Routes:</strong> {sacco.routes.join(', ')}</p>
+          <p><strong>Routes:</strong> {sacco.routes.length ? sacco.routes.map((route) => route.name).join(', ') : 'No routes registered'}</p>
+          {sacco.routes.map((route) => route.terminals.length > 0 && (
+            <p key={route.id}><strong>{route.name} terminals:</strong> {route.terminals.join(' -> ')}</p>
+          ))}
           <p><strong>SACCO Admin:</strong> {sacco.admin}</p>
           <p><strong>Phone:</strong> {sacco.phone}</p>
           <p><strong>Email:</strong> {sacco.email}</p>
         </article>
       ))}
+      {!loading && !error && directories.saccos.length === 0 && <p className="page-subtitle">No active SACCOs are registered yet.</p>}
+      {loading && <p className="page-subtitle">Loading SACCOs from the backend...</p>}
+      {error && <p role="alert" className="page-subtitle" style={{ color: 'var(--color-danger)' }}>{error}</p>}
     </div>
   </div>
-);
+};
 
-export const SchoolsList = () => (
-  <div className="public-page">
+export const SchoolsList = () => {
+  const { directories, loading, error } = usePublicDirectories();
+  return <div className="public-page">
     <SectionIntro
-      eyebrow="School Directory"
-      title="Registered schools, locations, and school-admin contacts"
-      body="This area helps parents and transport stakeholders discover supported schools and who manages their transport setup."
+      eyebrow="School Routes"
+      title="Registered school routes, terminals, and administrators"
+      body="Browse school transport routes and terminal sequences recorded in the backend."
     />
     <div className="info-grid">
-      {schools.map((school) => (
-        <article className="info-card" key={school.name}>
+      {directories.schools.map((school) => (
+        <article className="info-card" key={school.id}>
           <div className="info-topline">
             <strong>{school.name}</strong>
-            <span className="status-pill teal">{school.location}</span>
+            <span className="status-pill teal">{school.location || 'Location not provided'}</span>
           </div>
+          {school.routes.length ? school.routes.map((route) => (
+            <p key={route.id}><strong>{route.name}:</strong> {route.terminals.length ? route.terminals.join(' -> ') : 'No terminals registered'}</p>
+          )) : <p>No school routes registered yet.</p>}
           <p><strong>School Admin:</strong> {school.admin}</p>
           <p><strong>Phone:</strong> {school.phone}</p>
           <p><strong>Email:</strong> {school.email}</p>
         </article>
       ))}
+      {!loading && !error && directories.schools.length === 0 && <p className="page-subtitle">No active schools are registered yet.</p>}
+      {loading && <p className="page-subtitle">Loading school routes from the backend...</p>}
+      {error && <p role="alert" className="page-subtitle" style={{ color: 'var(--color-danger)' }}>{error}</p>}
     </div>
   </div>
-);
+};
 
 export const TermsConditions = () => (
   <div className="public-page narrow-page">
@@ -531,26 +520,54 @@ export const PassengerComplaints = () => {
   );
 };
 
-export const BookingServices = () => (
-  <div className="public-page">
+export const BookingServices = () => {
+  const [companies, setCompanies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    fetchBookingCompanies()
+      .then(async ({ companies: listedCompanies = [] }) => {
+        const details = await Promise.all(listedCompanies.map(async (company) => {
+          const response = await fetchBookingCompany(encodeURIComponent(company.slug));
+          return response.company;
+        }));
+        if (active) setCompanies(details);
+      })
+      .catch((requestError) => { if (active) setError(requestError.message || 'Could not load booking services.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  return <div className="public-page">
     <SectionIntro
       eyebrow="Booking Services"
       title="Long-distance travel companies open to passengers"
-      body="Passengers can browse booking companies, inspect routes and fares, then proceed into times, seats, and payment prompts after login."
+      body="Company, route, and fare information is loaded from the booking service configured in the backend."
     />
     <div className="info-grid">
-      {bookingCompanies.map((company) => (
-        <article className="info-card" key={company.name}>
+      {companies.map((company) => (
+        <article className="info-card" key={company.id}>
           <div className="info-topline">
             <strong>{company.name}</strong>
-            <span className="status-pill live">{company.fare}</span>
+            <span className="status-pill live">{company.location || 'Location not provided'}</span>
           </div>
-          <p><strong>Coverage:</strong> {company.route}</p>
+          {company.routes?.length ? company.routes.map((route) => (
+            <p key={route.id}>
+              <strong>{route.name}:</strong> {route.departure} to {route.destination} - KES {Number(route.fare).toLocaleString()}
+            </p>
+          )) : <p>No routes configured for this company.</p>}
+          {company.contact_phone && <p><strong>Phone:</strong> {company.contact_phone}</p>}
+          {company.contact_email && <p><strong>Email:</strong> {company.contact_email}</p>}
           <Link to="/dashboard/passenger/book" className="inline-route-link">
             Open booking flow
           </Link>
         </article>
       ))}
+      {loading && <p className="page-subtitle">Loading booking services from the backend...</p>}
+      {!loading && !error && companies.length === 0 && <p className="page-subtitle">No booking companies are configured yet.</p>}
+      {error && <p role="alert" className="page-subtitle" style={{ color: 'var(--color-danger)' }}>{error}</p>}
     </div>
   </div>
-);
+};
