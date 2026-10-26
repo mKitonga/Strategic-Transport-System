@@ -1,7 +1,7 @@
 # Local settings and credentials
 .env
 .env.*
-!.env.example
+.env.example
 auth.json
 .local-git-backups/
 
