@@ -45,7 +45,7 @@ export const Home = () => {
   const pulse = [
     { label: 'Active SACCOs', value: stats?.active_saccos, note: 'Active SACCO administrator accounts' },
     { label: 'Partner Schools', value: stats?.partner_schools, note: 'Active school and location profiles' },
-    { label: 'Registered SACCO Routes', value: stats?.registered_routes, note: 'Routes registered in the backend' },
+    { label: 'Registered SACCO Routes', value: stats?.registered_routes, note: 'Routes registered by different SACCOs' },
   ];
 
   return (
@@ -65,7 +65,7 @@ export const Home = () => {
       <div className="route-map-card" style={{ padding: '1rem' }}>
         <div className="route-map-header" style={{ marginBottom: '0.75rem' }}>
           <strong>Network Grid</strong>
-          <span>Routes from the backend</span>
+          <span>Routes registered by different SACCOs</span>
         </div>
         {loadError ? <p role="alert">{loadError}</p> : overview && overview.featured_routes?.length ? (
           <div className="route-lines" style={{ gap: '0.4rem' }}>
@@ -131,65 +131,167 @@ export const TrafficUpdates = () => (
   </div>
 );
 
+function DirectoryDetails({ item, directoryType }) {
+  const [activeTab, setActiveTab] = useState('routes');
+  const routes = item?.routes || [];
+  const terminals = routes.flatMap((route) => (route.terminals || []).map((name, index) => ({
+    routeId: route.id,
+    routeName: route.name,
+    name,
+    order: index + 1,
+  })));
+  const heading = directoryType === 'sacco' ? 'SACCO' : 'School';
+
+  return (
+    <section className="info-card" style={{ padding: 0, overflow: 'hidden', border: '1px solid var(--color-border)' }} aria-label={`${heading} routes and terminals`}>
+      <div role="tablist" aria-label={`${heading} details`} style={{ display: 'flex', gap: 4, padding: '0 14px', borderBottom: '1px solid var(--color-border)', overflowX: 'auto' }}>
+        {[
+          { id: 'routes', label: 'Routes', count: routes.length },
+          { id: 'terminals', label: 'Terminals', count: terminals.length },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            aria-controls={`${directoryType}-details-${item.id}-${tab.id}`}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              flex: '0 0 auto', padding: '13px 12px', border: 0,
+              borderBottom: activeTab === tab.id ? '3px solid var(--color-brand)' : '3px solid transparent',
+              background: 'transparent', color: activeTab === tab.id ? 'var(--color-text-main)' : 'var(--color-teal)',
+              font: 'inherit', cursor: 'pointer',
+            }}
+          >
+            {tab.label} <span style={{ opacity: 0.72 }}>({tab.count})</span>
+          </button>
+        ))}
+      </div>
+
+      <div id={`${directoryType}-details-${item.id}-${activeTab}`} role="tabpanel" style={{ padding: 16 }}>
+        <div className="info-topline" style={{ marginBottom: 12 }}>
+          <strong>{item.name} · {activeTab === 'routes' ? 'Routes' : 'Terminals'}</strong>
+          <span className="page-subtitle" style={{ margin: 0 }}>{activeTab === 'routes' ? `${routes.length} routes` : `${terminals.length} terminals`}</span>
+        </div>
+        <div className="data-table-wrap">
+          {activeTab === 'routes' ? (
+            <table className="data-table">
+              <thead><tr><th>#</th><th>Route</th><th>Terminals</th><th>Terminal sequence</th></tr></thead>
+              <tbody>
+                {routes.map((route, index) => (
+                  <tr key={route.id}>
+                    <td>{index + 1}</td>
+                    <td>{route.name}</td>
+                    <td>{route.terminals?.length || 0}</td>
+                    <td>{route.terminals?.length ? route.terminals.join(' → ') : 'No terminals registered'}</td>
+                  </tr>
+                ))}
+                {routes.length === 0 && <tr><td colSpan="4" className="empty-table-cell">No routes registered for this {heading.toLowerCase()}.</td></tr>}
+              </tbody>
+            </table>
+          ) : (
+            <table className="data-table">
+              <thead><tr><th>#</th><th>Terminal</th><th>Route</th><th>Order</th></tr></thead>
+              <tbody>
+                {terminals.map((terminal, index) => (
+                  <tr key={`${terminal.routeId}-${terminal.order}`}>
+                    <td>{index + 1}</td>
+                    <td>{terminal.name}</td>
+                    <td>{terminal.routeName}</td>
+                    <td>{terminal.order}</td>
+                  </tr>
+                ))}
+                {terminals.length === 0 && <tr><td colSpan="4" className="empty-table-cell">No terminals registered for this {heading.toLowerCase()}.</td></tr>}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DirectoryTable({ items, directoryType, selectedId, onSelect, loading, error }) {
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  const isSacco = directoryType === 'sacco';
+  const label = isSacco ? 'SACCOs' : 'schools';
+  const heading = isSacco ? 'SACCO' : 'School';
+  const selectedItem = items.find((item) => item.id === selectedId) || items[0] || null;
+
+  return (
+    <>
+      <div className="info-card" style={{ padding: 0 }}>
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead><tr><th>#</th><th>{heading}</th><th>Location</th><th>{heading} administrator</th><th>Phone</th><th>Email</th><th>Routes</th><th>Details</th></tr></thead>
+            <tbody>
+              {items.map((item, index) => (
+                <tr key={item.id} style={{ background: selectedItem?.id === item.id ? 'rgba(255, 206, 0, 0.09)' : undefined }}>
+                  <td>{index + 1}</td>
+                  <td><strong>{item.name}</strong></td>
+                  <td>{item.location || 'Not provided'}</td>
+                  <td>{item.admin || 'Not provided'}</td>
+                  <td>{item.phone || 'Not provided'}</td>
+                  <td>{item.email || 'Not provided'}</td>
+                  <td>{item.routes?.length || 0}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      style={{ width: 'auto', padding: '0.35rem 0.7rem' }}
+                      aria-expanded={selectedItem?.id === item.id && detailsOpen}
+                      onClick={() => {
+                        if (selectedItem?.id === item.id) {
+                          setDetailsOpen((isOpen) => !isOpen);
+                        } else {
+                          onSelect(item.id);
+                          setDetailsOpen(true);
+                        }
+                      }}
+                    >
+                      {selectedItem?.id === item.id && detailsOpen ? 'Hide' : 'View'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!loading && !error && items.length === 0 && <tr><td colSpan="8" className="empty-table-cell">No active {label} are registered yet.</td></tr>}
+              {loading && <tr><td colSpan="8" className="empty-table-cell">Loading {label} from the backend…</td></tr>}
+              {error && <tr><td colSpan="8" role="alert" className="empty-table-cell" style={{ color: 'var(--color-danger)' }}>{error}</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {selectedItem && detailsOpen && <DirectoryDetails key={`${directoryType}-${selectedItem.id}`} item={selectedItem} directoryType={directoryType} />}
+    </>
+  );
+}
+
 export const SaccosList = () => {
   const { directories, loading, error } = usePublicDirectories();
+  const [selectedId, setSelectedId] = useState(null);
+
   return <div className="public-page">
     <SectionIntro
       eyebrow="SACCO Directory"
       title="Registered SACCOs, routes, and administrator contacts"
-      body="Passengers and new users can inspect verified public transport operators before using the system."
+      body="Select a SACCO to inspect its routes and ordered terminal stops. Directory data comes from the backend."
     />
-    <div className="info-grid">
-      {directories.saccos.map((sacco) => (
-        <article className="info-card" key={sacco.id}>
-          <div className="info-topline">
-            <strong>{sacco.name}</strong>
-            <span className="status-pill live">{sacco.location || 'Location not provided'}</span>
-          </div>
-          <p><strong>Routes:</strong> {sacco.routes.length ? sacco.routes.map((route) => route.name).join(', ') : 'No routes registered'}</p>
-          {sacco.routes.map((route) => route.terminals.length > 0 && (
-            <p key={route.id}><strong>{route.name} terminals:</strong> {route.terminals.join(' -> ')}</p>
-          ))}
-          <p><strong>SACCO Admin:</strong> {sacco.admin}</p>
-          <p><strong>Phone:</strong> {sacco.phone}</p>
-          <p><strong>Email:</strong> {sacco.email}</p>
-        </article>
-      ))}
-      {!loading && !error && directories.saccos.length === 0 && <p className="page-subtitle">No active SACCOs are registered yet.</p>}
-      {loading && <p className="page-subtitle">Loading SACCOs from the backend...</p>}
-      {error && <p role="alert" className="page-subtitle" style={{ color: 'var(--color-danger)' }}>{error}</p>}
-    </div>
-  </div>
+    <DirectoryTable items={directories.saccos} directoryType="sacco" selectedId={selectedId} onSelect={setSelectedId} loading={loading} error={error} />
+  </div>;
 };
 
 export const SchoolsList = () => {
   const { directories, loading, error } = usePublicDirectories();
+  const [selectedId, setSelectedId] = useState(null);
+
   return <div className="public-page">
     <SectionIntro
       eyebrow="School Routes"
       title="Registered school routes, terminals, and administrators"
-      body="Browse school transport routes and terminal sequences recorded in the backend."
+      body="Select a school to inspect its routes and ordered terminal stops recorded in the backend."
     />
-    <div className="info-grid">
-      {directories.schools.map((school) => (
-        <article className="info-card" key={school.id}>
-          <div className="info-topline">
-            <strong>{school.name}</strong>
-            <span className="status-pill teal">{school.location || 'Location not provided'}</span>
-          </div>
-          {school.routes.length ? school.routes.map((route) => (
-            <p key={route.id}><strong>{route.name}:</strong> {route.terminals.length ? route.terminals.join(' -> ') : 'No terminals registered'}</p>
-          )) : <p>No school routes registered yet.</p>}
-          <p><strong>School Admin:</strong> {school.admin}</p>
-          <p><strong>Phone:</strong> {school.phone}</p>
-          <p><strong>Email:</strong> {school.email}</p>
-        </article>
-      ))}
-      {!loading && !error && directories.schools.length === 0 && <p className="page-subtitle">No active schools are registered yet.</p>}
-      {loading && <p className="page-subtitle">Loading school routes from the backend...</p>}
-      {error && <p role="alert" className="page-subtitle" style={{ color: 'var(--color-danger)' }}>{error}</p>}
-    </div>
-  </div>
+    <DirectoryTable items={directories.schools} directoryType="school" selectedId={selectedId} onSelect={setSelectedId} loading={loading} error={error} />
+  </div>;
 };
 
 export const TermsConditions = () => (
