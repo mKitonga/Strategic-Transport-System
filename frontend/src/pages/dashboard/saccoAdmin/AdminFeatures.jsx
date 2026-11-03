@@ -110,6 +110,10 @@ export const RoutesTerminals = () => {
   const [routes, setRoutes] = useState([]);
   const [form, setForm] = useState({ route_name: '', location: '', terminals: [''] });
   const [error, setError] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const pageSize = 10;
 
   const loadRoutes = async () => {
     try {
@@ -135,6 +139,10 @@ export const RoutesTerminals = () => {
     setForm((current) => ({ ...current, terminals: [...current.terminals, ''] }));
   };
 
+  const filteredRoutes = routes.filter((route) => `${route.route_name || ''} ${route.location || ''} ${(route.terminals || []).map((terminal) => terminal.terminal_name).join(' ')}`.toLowerCase().includes(search.toLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(filteredRoutes.length / pageSize));
+  const visibleRoutes = filteredRoutes.slice(page * pageSize, (page + 1) * pageSize);
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
@@ -146,6 +154,7 @@ export const RoutesTerminals = () => {
         terminals: form.terminals.filter(Boolean),
       });
       setForm({ route_name: '', location: '', terminals: [''] });
+      setModalOpen(false);
       await loadRoutes();
     } catch (requestError) {
       setError(requestError.message);
@@ -153,14 +162,43 @@ export const RoutesTerminals = () => {
   };
 
   return (
-    <div className="role-middle-grid">
-      <article className="card">
-        <h1 className="page-title">Routes and Terminals</h1>
-        <p className="page-subtitle">Create the SACCO routes and their terminals first so they can be used inside fare management and queue dispatch.</p>
+    <div>
+      <h1 className="page-title">Routes and Terminals</h1>
+      <p className="page-subtitle">Manage SACCO routes and the terminals used in fare management and queue dispatch.</p>
+      {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
 
-        {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
+      <section className="card route-directory-panel">
+        <div className="route-directory-toolbar">
+          <button className="btn btn-outline route-register-button" onClick={() => { setError(''); setModalOpen(true); }}>Register route</button>
+          <span className="route-count">{filteredRoutes.length} {filteredRoutes.length === 1 ? 'route' : 'routes'}</span>
+          <div className="route-search-row">
+            <input className="form-input" aria-label="Search routes" placeholder="Search route, location or terminal" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} />
+            <span className="route-search-icon" aria-hidden="true">&#128269;</span>
+          </div>
+          <div className="route-pagination" aria-label="Route pages">
+            <button type="button" aria-label="Previous page" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>‹</button>
+            <span>{page + 1} / {pageCount}</span>
+            <button type="button" aria-label="Next page" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}>›</button>
+          </div>
+        </div>
+        <div className="data-table-wrap">
+          <table className="data-table route-directory-table">
+            <thead><tr><th>#</th><th>Route</th><th>Location / Station</th><th>Terminals</th></tr></thead>
+            <tbody>
+              {visibleRoutes.length === 0 ? <tr><td colSpan="4" className="empty-table-cell">{routes.length ? 'No routes match your search.' : 'No routes added yet.'}</td></tr> : null}
+              {visibleRoutes.map((route, index) => (
+                <tr key={route.id}><td>{page * pageSize + index + 1}</td><td><strong>{route.route_name}</strong></td><td>{route.location || '—'}</td><td>{(route.terminals || []).map((terminal) => terminal.terminal_name).join(' → ') || 'No terminals listed'}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-        <form className="auth-page-form" onSubmit={handleSubmit}>
+      {modalOpen ? <div className="dashboard-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setModalOpen(false); }}>
+        <section className="dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="route-modal-title">
+          <div className="dashboard-modal-heading"><div><h2 id="route-modal-title">Register route</h2><p className="page-subtitle">Add a route and its ordered terminals.</p></div><button type="button" className="dashboard-modal-close" aria-label="Close" onClick={() => setModalOpen(false)}>×</button></div>
+          {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
+          <form className="auth-page-form" onSubmit={handleSubmit}>
           <div className="auth-grid auth-grid-two">
             <div className="form-group">
               <label className="form-label">Route Name</label>
@@ -189,23 +227,10 @@ export const RoutesTerminals = () => {
             <button type="button" className="btn btn-outline" onClick={addTerminalInput}>Add Another Terminal</button>
           </div>
 
-          <button className="btn btn-primary" type="submit">Save Route and Terminals</button>
-        </form>
-      </article>
-
-      <article className="card">
-        <h3>Saved SACCO Routes</h3>
-        <div className="stack-list" style={{ marginTop: '1rem' }}>
-          {routes.length === 0 ? <p className="page-subtitle">No routes added yet.</p> : null}
-          {routes.map((route) => (
-            <div key={route.id} className="stack-item">
-              <strong>{route.route_name}</strong>
-              <p>{route.location}</p>
-              <p className="page-subtitle">Terminals: {route.terminals.map((terminal) => terminal.terminal_name).join(', ')}</p>
-            </div>
-          ))}
-        </div>
-      </article>
+          <div className="dashboard-modal-actions"><button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancel</button><button className="btn btn-primary" type="submit">Save Route and Terminals</button></div>
+          </form>
+        </section>
+      </div> : null}
     </div>
   );
 };
@@ -213,6 +238,12 @@ export const RoutesTerminals = () => {
 export const ManageFares = () => {
   const [routes, setRoutes] = useState([]);
   const [error, setError] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [selectedRouteId, setSelectedRouteId] = useState('');
+  const [fareForm, setFareForm] = useState({ from_terminal_id: '', to_terminal_id: '', amount: '', peak_amount: '', off_peak_amount: '' });
+  const pageSize = 10;
 
   const loadFares = async () => {
     try {
@@ -227,10 +258,35 @@ export const ManageFares = () => {
     loadFares();
   }, []);
 
-  const handleSaveFare = async (routeId, fareForm) => {
+  const selectedRoute = routes.find((route) => String(route.id) === String(selectedRouteId));
+  const fareRows = routes.flatMap((route) => (route.fares || []).map((fare) => ({ ...fare, routeName: route.route_name, routeLocation: route.location })));
+  const filteredFares = fareRows.filter((fare) => `${fare.routeName || ''} ${fare.routeLocation || ''} ${fare.from_terminal_name || ''} ${fare.to_terminal_name || ''} ${fare.amount} ${fare.peak_amount ?? ''} ${fare.off_peak_amount ?? ''}`.toLowerCase().includes(search.toLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(filteredFares.length / pageSize));
+  const visibleFares = filteredFares.slice(page * pageSize, (page + 1) * pageSize);
+
+  const openFareModal = () => {
+    const firstRoute = routes[0];
+    const terminals = firstRoute?.terminals || [];
+    setError('');
+    setSelectedRouteId(firstRoute ? String(firstRoute.id) : '');
+    setFareForm({ from_terminal_id: terminals[0] ? String(terminals[0].id) : '', to_terminal_id: terminals[1] ? String(terminals[1].id) : (terminals[0] ? String(terminals[0].id) : ''), amount: '', peak_amount: '', off_peak_amount: '' });
+    setModalOpen(true);
+  };
+
+  const changeRoute = (routeId) => {
+    const route = routes.find((item) => String(item.id) === String(routeId));
+    const terminals = route?.terminals || [];
+    setSelectedRouteId(routeId);
+    setFareForm((current) => ({ ...current, from_terminal_id: terminals[0] ? String(terminals[0].id) : '', to_terminal_id: terminals[1] ? String(terminals[1].id) : (terminals[0] ? String(terminals[0].id) : '') }));
+  };
+
+  const handleSaveFare = async (event) => {
+    event.preventDefault();
+    if (!selectedRoute) return;
+    setError('');
     try {
       await saveSaccoFare({
-        sacco_route_id: routeId,
+        sacco_route_id: Number(selectedRoute.id),
         from_terminal_id: Number(fareForm.from_terminal_id),
         to_terminal_id: Number(fareForm.to_terminal_id),
         amount: Number(fareForm.amount),
@@ -238,6 +294,7 @@ export const ManageFares = () => {
         off_peak_amount: fareForm.off_peak_amount !== '' ? Number(fareForm.off_peak_amount) : null,
       });
       await loadFares();
+      setModalOpen(false);
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -246,104 +303,56 @@ export const ManageFares = () => {
   return (
     <div>
       <h1 className="page-title">Manage Fares</h1>
-      <p className="page-subtitle">Set fares by choosing terminals under each SACCO route that you already created.</p>
-      {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
+      <p className="page-subtitle">Set fares between terminals on your SACCO routes.</p>
+      {error && !modalOpen ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
 
-      <div className="card-grid">
-        {routes.length === 0 ? (
-          <div className="card">
-            <p className="page-subtitle">Add routes and terminals first before setting fares.</p>
+      <section className="card route-directory-panel">
+        <div className="route-directory-toolbar">
+          <button className="btn btn-outline route-register-button" onClick={openFareModal} disabled={routes.length === 0}>Register fare</button>
+          <span className="route-count">{filteredFares.length} {filteredFares.length === 1 ? 'fare' : 'fares'}</span>
+          <div className="route-search-row">
+            <input className="form-input" aria-label="Search fares" placeholder="Search route or terminal" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} />
+            <span className="route-search-icon" aria-hidden="true">&#128269;</span>
           </div>
-        ) : null}
+          <div className="route-pagination" aria-label="Fare pages">
+            <button type="button" aria-label="Previous page" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>‹</button>
+            <span>{page + 1} / {pageCount}</span>
+            <button type="button" aria-label="Next page" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}>›</button>
+          </div>
+        </div>
+        <div className="data-table-wrap">
+          <table className="data-table route-directory-table">
+            <thead><tr><th>#</th><th>Route</th><th>From terminal</th><th>To terminal</th><th>Standard (KES)</th><th>Peak (KES)</th><th>Off-peak (KES)</th></tr></thead>
+            <tbody>
+              {visibleFares.length === 0 ? <tr><td colSpan="7" className="empty-table-cell">{routes.length === 0 ? 'Add routes and terminals before setting fares.' : (fareRows.length === 0 ? 'No fares configured yet.' : 'No fares match your search.')}</td></tr> : null}
+              {visibleFares.map((fare, index) => <tr key={fare.id}><td>{page * pageSize + index + 1}</td><td><strong>{fare.routeName}</strong></td><td>{fare.from_terminal_name}</td><td>{fare.to_terminal_name}</td><td>{fare.amount}</td><td>{fare.peak_amount ?? '-'}</td><td>{fare.off_peak_amount ?? '-'}</td></tr>)}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-        {routes.map((route) => (
-          <FareCard key={route.id} route={route} onSave={handleSaveFare} />
-        ))}
-      </div>
+      {modalOpen ? <div className="dashboard-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setModalOpen(false); }}>
+        <section className="dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="fare-modal-title">
+          <div className="dashboard-modal-heading"><div><h2 id="fare-modal-title">Register fare</h2><p className="page-subtitle">Set standard and optional peak fares between two terminals.</p></div><button type="button" className="dashboard-modal-close" aria-label="Close" onClick={() => setModalOpen(false)}>×</button></div>
+          {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
+          <form className="auth-page-form" onSubmit={handleSaveFare}>
+            <div className="form-group"><label className="form-label">Route</label><select className="form-select" value={selectedRouteId} onChange={(event) => changeRoute(event.target.value)} required>{routes.map((route) => <option key={route.id} value={route.id}>{route.route_name} - {route.location}</option>)}</select></div>
+            <div className="auth-grid auth-grid-two">
+              <div className="form-group"><label className="form-label">From terminal</label><select className="form-select" value={fareForm.from_terminal_id} onChange={(event) => setFareForm((current) => ({ ...current, from_terminal_id: event.target.value }))} required>{(selectedRoute?.terminals || []).map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.terminal_name}</option>)}</select></div>
+              <div className="form-group"><label className="form-label">To terminal</label><select className="form-select" value={fareForm.to_terminal_id} onChange={(event) => setFareForm((current) => ({ ...current, to_terminal_id: event.target.value }))} required>{(selectedRoute?.terminals || []).map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.terminal_name}</option>)}</select></div>
+            </div>
+            <div className="auth-grid auth-grid-two">
+              <div className="form-group"><label className="form-label">Standard fare (KES)</label><input className="form-input" type="number" min="0" step="0.01" placeholder="e.g. 50" value={fareForm.amount} onChange={(event) => setFareForm((current) => ({ ...current, amount: event.target.value }))} required /></div>
+              <div className="form-group"><label className="form-label">Peak fare (KES)</label><input className="form-input" type="number" min="0" step="0.01" placeholder="Optional" value={fareForm.peak_amount} onChange={(event) => setFareForm((current) => ({ ...current, peak_amount: event.target.value }))} /></div>
+            </div>
+            <div className="form-group"><label className="form-label">Off-peak fare (KES)</label><input className="form-input" type="number" min="0" step="0.01" placeholder="Optional" value={fareForm.off_peak_amount} onChange={(event) => setFareForm((current) => ({ ...current, off_peak_amount: event.target.value }))} /><small className="page-subtitle">Peak hours: Mon-Fri 6-9 AM and 5-8 PM. Off-peak applies at other times.</small></div>
+            <div className="dashboard-modal-actions"><button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancel</button><button className="btn btn-primary" type="submit">Save fare</button></div>
+          </form>
+        </section>
+      </div> : null}
     </div>
   );
 };
-
-function FareCard({ route, onSave }) {
-  const [fareForm, setFareForm] = useState({
-    from_terminal_id: route.terminals[0]?.id || '',
-    to_terminal_id: route.terminals[1]?.id || route.terminals[0]?.id || '',
-    amount: '',
-    peak_amount: '',
-    off_peak_amount: '',
-  });
-
-  const update = (field) => (event) => setFareForm((current) => ({ ...current, [field]: event.target.value }));
-
-  return (
-    <div className="card">
-      <h3>{route.route_name}</h3>
-      <p className="page-subtitle">{route.location}</p>
-
-      <div className="auth-grid auth-grid-two" style={{ marginTop: '1rem' }}>
-        <div className="form-group">
-          <label className="form-label">From Terminal</label>
-          <select className="form-select" value={fareForm.from_terminal_id} onChange={update('from_terminal_id')}>
-            {route.terminals.map((terminal) => (
-              <option key={terminal.id} value={terminal.id}>{terminal.terminal_name}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">To Terminal</label>
-          <select className="form-select" value={fareForm.to_terminal_id} onChange={update('to_terminal_id')}>
-            {route.terminals.map((terminal) => (
-              <option key={terminal.id} value={terminal.id}>{terminal.terminal_name}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="auth-grid auth-grid-two">
-        <div className="form-group">
-          <label className="form-label">Standard Fare (KES)</label>
-          <input className="form-input" type="number" min="0" placeholder="e.g. 50" value={fareForm.amount} onChange={update('amount')} />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Peak Fare (KES)</label>
-          <input className="form-input" type="number" min="0" placeholder="e.g. 80" value={fareForm.peak_amount} onChange={update('peak_amount')} />
-        </div>
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">Off-Peak Fare (KES)</label>
-        <input className="form-input" type="number" min="0" placeholder="e.g. 40" value={fareForm.off_peak_amount} onChange={update('off_peak_amount')} />
-        <small className="page-subtitle" style={{ marginTop: '0.25rem', display: 'block' }}>
-          Peak hours: Mon–Fri 6–9 AM &amp; 5–8 PM. Off-peak applies at all other times.
-        </small>
-      </div>
-
-      <button className="btn btn-primary" onClick={() => onSave(route.id, fareForm)}>Save Fare</button>
-
-      <div className="stack-list" style={{ marginTop: '1.25rem' }}>
-        {route.fares.map((fare) => (
-          <div key={fare.id} className="stack-item">
-            <strong>{fare.from_terminal_name} → {fare.to_terminal_name}</strong>
-            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
-              <span className="role-chip">Standard: KES {fare.amount}</span>
-              {fare.peak_amount != null && (
-                <span className="role-chip" style={{ background: 'rgba(239,68,68,0.12)', color: '#ef4444' }}>
-                  Peak: KES {fare.peak_amount}
-                </span>
-              )}
-              {fare.off_peak_amount != null && (
-                <span className="role-chip" style={{ background: 'rgba(34,197,94,0.12)', color: '#22c55e' }}>
-                  Off-Peak: KES {fare.off_peak_amount}
-                </span>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export const QueueManagement = () => {
   const [queueEntries, setQueueEntries] = useState([]);
@@ -563,19 +572,19 @@ export const ComplaintsAdmin = () => {
     loadComplaints();
   }, []);
 
-  const handleRespond = async (complaintId, sourceTable) => {
+  const handleRespond = async (complaintId, sourceTable, responseKey = complaintId) => {
     try {
       setError('');
       setNotice('');
       const result = await respondToComplaint(complaintId, {
-        response_message: responses[complaintId] || '',
+        response_message: responses[responseKey] || '',
         source_table: sourceTable
       });
       const deliverySummary = Object.entries(result.delivery || {})
         .map(([channel, delivery]) => `${channel.toUpperCase()}: ${(delivery.status || 'unknown').replace(/_/g, ' ')}`)
         .join(' | ');
       setNotice(`${result.message}${deliverySummary ? ` ${deliverySummary}.` : ''}`);
-      setResponses((current) => ({ ...current, [complaintId]: '' }));
+      setResponses((current) => ({ ...current, [responseKey]: '' }));
       await loadComplaints();
     } catch (requestError) {
       setError(requestError.message);
@@ -589,39 +598,29 @@ export const ComplaintsAdmin = () => {
       {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
       {notice ? <p className="auth-feedback" role="status">{notice}</p> : null}
 
-      <div className="card-grid">
-        {complaints.length === 0 ? (
-          <div className="card">
-            <p className="page-subtitle">No complaints for your route yet.</p>
-          </div>
-        ) : null}
-
-        {complaints.map((complaint) => (
-          <div key={complaint.id} className="card">
-            <div className="info-topline">
-              <h4>Complaint #{complaint.id}</h4>
-              <StatusBadge value={complaint.status} />
-            </div>
-            <p><strong>Route:</strong> {complaint.route_name}</p>
-            {complaint.passenger_phone ? <p><strong>Passenger Phone:</strong> {complaint.passenger_phone}</p> : null}
-            {complaint.passenger_email ? <p><strong>Passenger Email:</strong> {complaint.passenger_email}</p> : null}
-            <div className="route-map-card" style={{ marginTop: '1rem' }}>
-              <strong>Complaint Message</strong>
-              <p>{complaint.message}</p>
-            </div>
-
-            <textarea
-              className="form-input complaint-box"
-              placeholder="Type your direct response to the passenger here..."
-              value={responses[complaint.id] ?? complaint.response_message ?? ''}
-              onChange={(event) => setResponses((current) => ({ ...current, [complaint.id]: event.target.value }))}
-              style={{ marginTop: '1rem' }}
-            />
-            <button className="btn btn-primary" style={{ marginTop: '0.75rem' }} onClick={() => handleRespond(complaint.id, complaint.source_table)}>
-              Send Response
-            </button>
-          </div>
-        ))}
+      <div className="card" style={{ padding: 0 }}>
+        <div className="data-table-wrap">
+          <table className="data-table">
+            <thead><tr><th>Complaint</th><th>Route</th><th>Passenger contact</th><th>Message</th><th>Status</th><th>Response</th><th>Action</th></tr></thead>
+            <tbody>
+              {complaints.length === 0 ? <tr><td colSpan="7" className="empty-table-cell">No complaints for your route yet.</td></tr> : null}
+              {complaints.map((complaint) => {
+                const complaintKey = `${complaint.source_table}-${complaint.id}`;
+                return <tr key={complaintKey}>
+                  <td>#{complaint.id}</td>
+                  <td>{complaint.route_name || '—'}</td>
+                  <td>{[complaint.passenger_phone, complaint.passenger_email].filter(Boolean).join(' | ') || '—'}</td>
+                  <td style={{ minWidth: '220px', whiteSpace: 'normal' }}>{complaint.message}</td>
+                  <td><StatusBadge value={complaint.status} /></td>
+                  <td style={{ minWidth: '250px' }}>
+                    <textarea className="form-input complaint-box" placeholder="Type your direct response to the passenger here..." value={responses[complaintKey] ?? complaint.response_message ?? ''} onChange={(event) => setResponses((current) => ({ ...current, [complaintKey]: event.target.value }))} rows="3" />
+                  </td>
+                  <td><button className="btn btn-primary action-btn" onClick={() => handleRespond(complaint.id, complaint.source_table, complaintKey)}>Send Response</button></td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
