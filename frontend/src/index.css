@@ -856,6 +856,14 @@ a {
   padding: 20px 22px 12px;
 }
 
+.route-directory-toolbar-no-action {
+  grid-template-columns: auto minmax(220px, 1fr) auto;
+}
+
+.route-directory-toolbar-multiple-actions {
+  grid-template-columns: auto auto auto minmax(220px, 1fr) auto;
+}
+
 .route-register-button {
   width: auto;
   border-radius: 999px;

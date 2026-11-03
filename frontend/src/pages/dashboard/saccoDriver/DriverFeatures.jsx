@@ -14,6 +14,8 @@ export const ArrivalAlert = () => {
   const [queueEntry, setQueueEntry] = useState(null);
   const [stationLocation, setStationLocation] = useState('');
   const [error, setError] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [search, setSearch] = useState('');
 
   const loadStatus = async () => {
     try {
@@ -29,10 +31,12 @@ export const ArrivalAlert = () => {
   }, []);
 
   const handleNotify = async () => {
+    setError('');
     try {
       await notifyArrival({ station_location: stationLocation });
       setStationLocation('');
       await loadStatus();
+      setModalOpen(false);
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -42,40 +46,35 @@ export const ArrivalAlert = () => {
     <div>
       <h1 className="page-title">Station Arrival</h1>
       <p className="page-subtitle">Notify the SACCO admin when you reach the SACCO location so you can be placed in the queue.</p>
-      {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
+      {error && !modalOpen ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
 
-      <div className="role-middle-grid">
-        <div className="card">
-          <h3>Send Arrival Notification</h3>
-          <div className="form-group" style={{ marginTop: '1rem' }}>
-            <label className="form-label">SACCO Location</label>
-            <input className="form-input" value={stationLocation} onChange={(event) => setStationLocation(event.target.value)} placeholder="e.g. Odeon Terminus" />
-          </div>
-          <button className="btn btn-primary" onClick={handleNotify}>Alert Admin & Join Queue</button>
+      <section className="card route-directory-panel">
+        <div className="route-directory-toolbar route-directory-toolbar-no-action">
+          <button className="btn btn-outline route-register-button" onClick={() => { setError(''); setModalOpen(true); }}>Notify arrival</button>
+          <span className="route-count">{queueEntry ? '1 queue notification' : '0 queue notifications'}</span>
+          <div className="route-search-row"><input className="form-input" aria-label="Search arrival status" placeholder="Search station or status" value={search} onChange={(event) => setSearch(event.target.value)} /><span className="route-search-icon" aria-hidden="true">&#128269;</span></div>
         </div>
+        <div className="data-table-wrap">
+          <table className="data-table route-directory-table">
+            <thead><tr><th>#</th><th>Queue position</th><th>SACCO station</th><th>Status</th><th>Notification time</th></tr></thead>
+            <tbody>
+              {(!queueEntry || !`${queueEntry.station_location || ''} ${queueEntry.status || ''}`.toLowerCase().includes(search.toLowerCase())) ? <tr><td colSpan="5" className="empty-table-cell">{queueEntry ? 'No queue status matches your search.' : 'No arrival notification has been sent yet.'}</td></tr> : null}
+              {queueEntry && `${queueEntry.station_location || ''} ${queueEntry.status || ''}`.toLowerCase().includes(search.toLowerCase()) ? <tr><td>1</td><td>#{queueEntry.queue_position}</td><td>{queueEntry.station_location}</td><td>{queueEntry.status}</td><td>{queueEntry.notified_at || queueEntry.created_at || '—'}</td></tr> : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
-        <div className="card">
-          <h3>Latest Queue Status</h3>
-          {queueEntry ? (
-            <div className="stack-list" style={{ marginTop: '1rem' }}>
-              <div className="stack-item">
-                <strong>Queue Position</strong>
-                <p>#{queueEntry.queue_position}</p>
-              </div>
-              <div className="stack-item">
-                <strong>Station</strong>
-                <p>{queueEntry.station_location}</p>
-              </div>
-              <div className="stack-item">
-                <strong>Status</strong>
-                <p>{queueEntry.status}</p>
-              </div>
-            </div>
-          ) : (
-            <p className="page-subtitle" style={{ marginTop: '1rem' }}>No queue notification has been sent yet.</p>
-          )}
-        </div>
-      </div>
+      {modalOpen ? <div className="dashboard-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setModalOpen(false); }}>
+        <section className="dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="arrival-modal-title">
+          <div className="dashboard-modal-heading"><div><h2 id="arrival-modal-title">Send Arrival Notification</h2><p className="page-subtitle">Tell the SACCO admin which station you have reached.</p></div><button type="button" className="dashboard-modal-close" aria-label="Close" onClick={() => setModalOpen(false)}>×</button></div>
+          {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
+          <form className="auth-page-form" onSubmit={(event) => { event.preventDefault(); handleNotify(); }}>
+            <div className="form-group"><label className="form-label">SACCO location</label><input className="form-input" value={stationLocation} onChange={(event) => setStationLocation(event.target.value)} placeholder="e.g. Odeon Terminus" required /></div>
+            <div className="dashboard-modal-actions"><button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancel</button><button className="btn btn-primary" type="submit">Alert admin &amp; join queue</button></div>
+          </form>
+        </section>
+      </div> : null}
     </div>
   );
 };
@@ -88,13 +87,17 @@ export const DriverFares = () => {
   const [passengerPhone, setPassengerPhone] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const pageSize = 10;
 
   const loadFares = async () => {
     try {
       const response = await fetchDriverFares();
       setRoutes(response.routes || []);
       const firstRoute = response.routes?.[0];
-      if (firstRoute) {
+      if (firstRoute && !selectedRouteId) {
         setSelectedRouteId(String(firstRoute.id));
         setBoardingTerminalId(String(firstRoute.terminals?.[0]?.id || ''));
         setDropoffTerminalId(String(firstRoute.terminals?.[1]?.id || firstRoute.terminals?.[0]?.id || ''));
@@ -104,21 +107,12 @@ export const DriverFares = () => {
     }
   };
 
-  useEffect(() => {
-    loadFares();
-  }, []);
+  useEffect(() => { loadFares(); }, []);
 
-  const selectedRoute = useMemo(
-    () => routes.find((route) => String(route.id) === String(selectedRouteId)) || null,
-    [routes, selectedRouteId],
-  );
-
+  const selectedRoute = useMemo(() => routes.find((route) => String(route.id) === String(selectedRouteId)) || null, [routes, selectedRouteId]);
   const matchedFare = useMemo(() => {
     if (!selectedRoute) return null;
-    return selectedRoute.fares.find((fare) => (
-      String(fare.from_terminal_id) === String(boardingTerminalId)
-      && String(fare.to_terminal_id) === String(dropoffTerminalId)
-    )) || null;
+    return (selectedRoute.fares || []).find((fare) => String(fare.from_terminal_id) === String(boardingTerminalId) && String(fare.to_terminal_id) === String(dropoffTerminalId)) || null;
   }, [selectedRoute, boardingTerminalId, dropoffTerminalId]);
 
   useEffect(() => {
@@ -132,10 +126,8 @@ export const DriverFares = () => {
     const now = new Date();
     const day = now.getDay();
     const hour = now.getHours();
-    const isWeekday = day >= 1 && day <= 5;
-    return isWeekday && ((hour >= 6 && hour < 9) || (hour >= 17 && hour < 20));
+    return day >= 1 && day <= 5 && ((hour >= 6 && hour < 9) || (hour >= 17 && hour < 20));
   };
-
   const getEffectiveFare = (fare) => {
     if (!fare) return null;
     const peak = isPeakHour();
@@ -143,22 +135,21 @@ export const DriverFares = () => {
     if (!peak && fare.off_peak_amount != null) return { amount: fare.off_peak_amount, period: 'off-peak' };
     return { amount: fare.amount, period: 'standard' };
   };
-
   const effectiveFare = getEffectiveFare(matchedFare);
   const periodColor = { peak: '#ef4444', 'off-peak': '#22c55e', standard: 'var(--color-primary)' };
+  const fareRows = routes.flatMap((route) => (route.fares || []).map((fare) => ({ ...fare, routeName: route.route_name, routeLocation: route.location })));
+  const filteredFares = fareRows.filter((fare) => `${fare.routeName || ''} ${fare.routeLocation || ''} ${fare.from_terminal_name || ''} ${fare.to_terminal_name || ''} ${fare.amount}`.toLowerCase().includes(search.toLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(filteredFares.length / pageSize));
+  const visibleFares = filteredFares.slice(page * pageSize, (page + 1) * pageSize);
 
   const handlePrompt = async () => {
     setError('');
     setSuccess('');
     try {
-      const response = await createFarePrompt({
-        sacco_route_id: Number(selectedRouteId),
-        boarding_terminal_id: Number(boardingTerminalId),
-        dropoff_terminal_id: Number(dropoffTerminalId),
-        passenger_phone: passengerPhone,
-      });
+      const response = await createFarePrompt({ sacco_route_id: Number(selectedRouteId), boarding_terminal_id: Number(boardingTerminalId), dropoff_terminal_id: Number(dropoffTerminalId), passenger_phone: passengerPhone });
       setSuccess(response.message || 'Prompt sent.');
       setPassengerPhone('');
+      setModalOpen(false);
     } catch (requestError) {
       setError(requestError.message);
     }
@@ -166,114 +157,52 @@ export const DriverFares = () => {
 
   return (
     <div>
-      <h1 className="page-title">Fares & Payments</h1>
-      <p className="page-subtitle">Select route and terminals to send an M-Pesa prompt. The correct fare period is applied automatically.</p>
-      {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
+      <h1 className="page-title">Fares &amp; Payments</h1>
+      <p className="page-subtitle">Review your SACCO fares and send an M-Pesa prompt to a passenger.</p>
+      {error && !modalOpen ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
       {success ? <p className="auth-feedback" style={{ color: 'var(--color-success)' }}>{success}</p> : null}
-
-      <div className="role-middle-grid">
-        <div className="card">
-          <h3>Passenger Fare Prompt</h3>
-          <div className="form-group" style={{ marginTop: '1rem' }}>
-            <label className="form-label">Route</label>
-            <select className="form-select" value={selectedRouteId} onChange={(event) => setSelectedRouteId(event.target.value)}>
-              {routes.map((route) => (
-                <option key={route.id} value={route.id}>{route.route_name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="auth-grid auth-grid-two">
-            <div className="form-group">
-              <label className="form-label">Boarding Terminal</label>
-              <select className="form-select" value={boardingTerminalId} onChange={(event) => setBoardingTerminalId(event.target.value)}>
-                {(selectedRoute?.terminals || []).map((terminal) => (
-                  <option key={terminal.id} value={terminal.id}>{terminal.terminal_name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Drop-off Terminal</label>
-              <select className="form-select" value={dropoffTerminalId} onChange={(event) => setDropoffTerminalId(event.target.value)}>
-                {(selectedRoute?.terminals || []).map((terminal) => (
-                  <option key={terminal.id} value={terminal.id}>{terminal.terminal_name}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Passenger Phone Number</label>
-            <input className="form-input" value={passengerPhone} onChange={(event) => setPassengerPhone(event.target.value)} placeholder="+2547... or 07..." />
-          </div>
-
-          {effectiveFare ? (
-            <div className="role-stat-card" style={{ marginBottom: '1rem', borderLeft: `4px solid ${periodColor[effectiveFare.period]}` }}>
-              <span>Fare Applied ({effectiveFare.period})</span>
-              <strong style={{ color: periodColor[effectiveFare.period] }}>KES {effectiveFare.amount}</strong>
-            </div>
-          ) : (
-            <div className="role-stat-card amber" style={{ marginBottom: '1rem' }}>
-              <span>Fare Amount</span>
-              <strong>No fare set for this route</strong>
-            </div>
-          )}
-
-          <button className="btn btn-primary" onClick={handlePrompt} disabled={!matchedFare || !passengerPhone}>
-            Send M-Pesa Prompt
-          </button>
+      <section className="card route-directory-panel">
+        <div className="route-directory-toolbar">
+          <button className="btn btn-outline route-register-button" onClick={() => { setError(''); setModalOpen(true); }} disabled={routes.length === 0}>Send M-Pesa prompt</button>
+          <span className="route-count">{filteredFares.length} {filteredFares.length === 1 ? 'fare' : 'fares'}</span>
+          <div className="route-search-row"><input className="form-input" aria-label="Search fares" placeholder="Search route or terminal" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} /><span className="route-search-icon" aria-hidden="true">&#128269;</span></div>
+          <div className="route-pagination" aria-label="Fare pages"><button type="button" aria-label="Previous page" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>&lsaquo;</button><span>{page + 1} / {pageCount}</span><button type="button" aria-label="Next page" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}>&rsaquo;</button></div>
         </div>
-
-        <div className="card">
-          <h3>All Route Fares</h3>
-          <p className="page-subtitle" style={{ marginBottom: '1rem' }}>Peak hours: Mon–Fri 6–9 AM &amp; 5–8 PM.</p>
-          {routes.length === 0 ? (
-            <p className="page-subtitle">No fares configured yet.</p>
-          ) : (
-            routes.map((route) => (
-              <div key={route.id} style={{ marginBottom: '1.5rem' }}>
-                <h4 style={{ marginBottom: '0.5rem' }}>{route.route_name} <span className="page-subtitle">- {route.location}</span></h4>
-                <div className="data-table-wrap">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>From</th>
-                        <th>To</th>
-                        <th>Standard (KES)</th>
-                        <th>Peak (KES)</th>
-                        <th>Off-Peak (KES)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {route.fares.length === 0 ? (
-                        <tr><td colSpan="5" className="empty-table-cell">No fares set for this route.</td></tr>
-                      ) : (
-                        route.fares.map((fare) => (
-                          <tr key={fare.id}>
-                            <td>{fare.from_terminal_name}</td>
-                            <td>{fare.to_terminal_name}</td>
-                            <td>{fare.amount}</td>
-                            <td>{fare.peak_amount != null ? fare.peak_amount : <span className="page-subtitle">N/A</span>}</td>
-                            <td>{fare.off_peak_amount != null ? fare.off_peak_amount : <span className="page-subtitle">N/A</span>}</td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))
-          )}
+        <div className="data-table-wrap">
+          <table className="data-table route-directory-table">
+            <thead><tr><th>#</th><th>Route</th><th>Boarding terminal</th><th>Drop-off terminal</th><th>Standard (KES)</th><th>Peak (KES)</th><th>Off-peak (KES)</th></tr></thead>
+            <tbody>
+              {visibleFares.length === 0 ? <tr><td colSpan="7" className="empty-table-cell">{routes.length === 0 ? 'No routes or fares are available.' : (fareRows.length === 0 ? 'No fares configured yet.' : 'No fares match your search.')}</td></tr> : null}
+              {visibleFares.map((fare, index) => <tr key={fare.id}><td>{page * pageSize + index + 1}</td><td><strong>{fare.routeName}</strong><br /><span className="page-subtitle">{fare.routeLocation}</span></td><td>{fare.from_terminal_name}</td><td>{fare.to_terminal_name}</td><td>{fare.amount}</td><td>{fare.peak_amount ?? 'N/A'}</td><td>{fare.off_peak_amount ?? 'N/A'}</td></tr>)}
+            </tbody>
+          </table>
         </div>
-      </div>
+      </section>
+      {modalOpen ? <div className="dashboard-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setModalOpen(false); }}>
+        <section className="dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="driver-fare-modal-title">
+          <div className="dashboard-modal-heading"><div><h2 id="driver-fare-modal-title">Passenger Fare Prompt</h2><p className="page-subtitle">Choose the route details and passenger phone number.</p></div><button type="button" className="dashboard-modal-close" aria-label="Close" onClick={() => setModalOpen(false)}>×</button></div>
+          {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
+          <form className="auth-page-form" onSubmit={(event) => { event.preventDefault(); handlePrompt(); }}>
+            <div className="form-group"><label className="form-label">Route</label><select className="form-select" value={selectedRouteId} onChange={(event) => setSelectedRouteId(event.target.value)} required>{routes.map((route) => <option key={route.id} value={route.id}>{route.route_name}</option>)}</select></div>
+            <div className="auth-grid auth-grid-two">
+              <div className="form-group"><label className="form-label">Boarding terminal</label><select className="form-select" value={boardingTerminalId} onChange={(event) => setBoardingTerminalId(event.target.value)} required>{(selectedRoute?.terminals || []).map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.terminal_name}</option>)}</select></div>
+              <div className="form-group"><label className="form-label">Drop-off terminal</label><select className="form-select" value={dropoffTerminalId} onChange={(event) => setDropoffTerminalId(event.target.value)} required>{(selectedRoute?.terminals || []).map((terminal) => <option key={terminal.id} value={terminal.id}>{terminal.terminal_name}</option>)}</select></div>
+            </div>
+            <div className="form-group"><label className="form-label">Passenger phone number</label><input className="form-input" type="tel" value={passengerPhone} onChange={(event) => setPassengerPhone(event.target.value)} placeholder="+2547... or 07..." required /></div>
+            {effectiveFare ? <div className="role-stat-card" style={{ marginBottom: '1rem', borderLeft: `4px solid ${periodColor[effectiveFare.period]}` }}><span>Fare applied ({effectiveFare.period})</span><strong style={{ color: periodColor[effectiveFare.period] }}>KES {effectiveFare.amount}</strong></div> : <div className="role-stat-card amber" style={{ marginBottom: '1rem' }}><span>Fare amount</span><strong>No fare set for this route</strong></div>}
+            <div className="dashboard-modal-actions"><button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancel</button><button className="btn btn-primary" type="submit" disabled={!matchedFare || !passengerPhone}>Send M-Pesa prompt</button></div>
+          </form>
+        </section>
+      </div> : null}
     </div>
   );
 };
-
 export const PassengerDropOffs = () => {
   const [dropoffs, setDropoffs] = useState([]);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const pageSize = 10;
 
   const loadDropoffs = async () => {
     try {
@@ -287,6 +216,10 @@ export const PassengerDropOffs = () => {
   useEffect(() => {
     loadDropoffs();
   }, []);
+
+  const filteredDropoffs = dropoffs.filter((dropoff) => `${dropoff.passenger_phone || ''} ${dropoff.route_name || ''} ${dropoff.boarding_terminal || ''} ${dropoff.dropoff_terminal || ''} ${dropoff.prompt_status || ''}`.toLowerCase().includes(search.toLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(filteredDropoffs.length / pageSize));
+  const visibleDropoffs = filteredDropoffs.slice(page * pageSize, (page + 1) * pageSize);
 
   const handleClear = async (paymentId) => {
     try {
@@ -303,11 +236,24 @@ export const PassengerDropOffs = () => {
       <p className="page-subtitle">Passengers who entered drop-off terminals appear here with their phone number so you can track where they alight.</p>
       {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
 
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card route-directory-panel" style={{ padding: 0 }}>
+        <div className="route-directory-toolbar route-directory-toolbar-no-action">
+          <span className="route-count">{filteredDropoffs.length} {filteredDropoffs.length === 1 ? 'passenger' : 'passengers'}</span>
+          <div className="route-search-row">
+            <input className="form-input" aria-label="Search passenger drop-offs" placeholder="Search phone, route or terminal" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} />
+            <span className="route-search-icon" aria-hidden="true">&#128269;</span>
+          </div>
+          <div className="route-pagination" aria-label="Drop-off pages">
+            <button type="button" aria-label="Previous page" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>‹</button>
+            <span>{page + 1} / {pageCount}</span>
+            <button type="button" aria-label="Next page" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}>›</button>
+          </div>
+        </div>
         <div className="data-table-wrap">
-          <table className="data-table">
+          <table className="data-table route-directory-table">
             <thead>
               <tr>
+                <th>#</th>
                 <th>Passenger Phone</th>
                 <th>Route</th>
                 <th>Boarding Terminal</th>
@@ -318,14 +264,11 @@ export const PassengerDropOffs = () => {
               </tr>
             </thead>
             <tbody>
-              {dropoffs.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="empty-table-cell">No passenger drop-off records yet.</td>
-                </tr>
-              ) : null}
+              {visibleDropoffs.length === 0 ? <tr><td colSpan="8" className="empty-table-cell">{dropoffs.length === 0 ? 'No passenger drop-off records yet.' : 'No drop-offs match your search.'}</td></tr> : null}
 
-              {dropoffs.map((dropoff) => (
+              {visibleDropoffs.map((dropoff, index) => (
                 <tr key={dropoff.id}>
+                  <td>{page * pageSize + index + 1}</td>
                   <td>{dropoff.passenger_phone}</td>
                   <td>{dropoff.route_name}</td>
                   <td>{dropoff.boarding_terminal}</td>
