@@ -127,6 +127,7 @@ export const PassengerBooking = () => {
 
       {step === 1 && (
         <div className="card-grid">
+          {companies.length === 0 && <p className="page-subtitle">No registered booking companies are available yet.</p>}
           {companies.map((company) => (
             <div
               key={company.id}
@@ -150,11 +151,13 @@ export const PassengerBooking = () => {
             &larr; Back to booking companies
           </button>
           <div className="card-grid">
+            {selectedCompany.routes.length === 0 && <p className="page-subtitle">This company has no routes or fares stored in the backend yet.</p>}
             {selectedCompany.routes.map((route) => (
               <div className="card" key={route.id}>
                 <h3>{route.name}</h3>
-                <p style={{ color: 'var(--color-text-muted)' }}>{route.departure} to {route.destination}</p>
-                <p style={{ color: 'var(--color-success)', fontWeight: 'bold' }}>KES {route.fare}</p>
+                <p style={{ color: 'var(--color-text-muted)' }}>{route.location || `${route.departure} to ${route.destination}`}</p>
+                {route.terminals?.length > 0 && <p style={{ color: 'var(--color-text-muted)' }}>{route.terminals.map((terminal) => terminal.terminal_name).join(' → ')}</p>}
+                {route.fare !== undefined && route.fare !== null && <p style={{ color: 'var(--color-success)', fontWeight: 'bold' }}>From KES {Number(route.fare).toLocaleString()}</p>}
                 <button className="btn btn-primary" onClick={() => handleRouteSelect(route.id)}>
                   View Trip Times
                 </button>
@@ -170,6 +173,7 @@ export const PassengerBooking = () => {
             &larr; Back to routes
           </button>
           <div className="card-grid">
+            {selectedRoute.trips.length === 0 && <p className="page-subtitle">No trips are available for this route yet.</p>}
             {selectedRoute.trips.map((trip) => (
               <div className="card" key={trip.id}>
                 <h3>{trip.time}</h3>

@@ -9,18 +9,72 @@ use Illuminate\Support\Facades\DB;
 
 class BookingController extends Controller
 {
+    public function drivers(Request $request): JsonResponse
+    {
+        $admin = $request->user();
+        abort_unless($admin && $admin->role === 'booking_admin', 403, 'Only booking admins can review booking drivers.');
+
+        $companyName = mb_strtolower(trim((string) $admin->company_name));
+        abort_if($companyName === '', 422, 'Add your booking company name to your account before reviewing drivers.');
+
+        $drivers = DB::table('users')
+            ->where('role', 'booking_driver')
+            ->whereRaw('LOWER(TRIM(company_name)) = ?', [$companyName])
+            ->orderByRaw("CASE WHEN status = 'pending_approval' THEN 0 ELSE 1 END")
+            ->orderBy('created_at')
+            ->get(['id', 'name', 'phone', 'email', 'company_name', 'number_plate', 'bus_capacity', 'status', 'created_at']);
+
+        return response()->json(['drivers' => $drivers]);
+    }
+
+    public function approveDriver(Request $request, int $driverId): JsonResponse
+    {
+        $admin = $request->user();
+        abort_unless($admin && $admin->role === 'booking_admin', 403, 'Only booking admins can approve booking drivers.');
+
+        $companyName = mb_strtolower(trim((string) $admin->company_name));
+        abort_if($companyName === '', 422, 'Add your booking company name to your account before approving drivers.');
+
+        $driver = DB::table('users')
+            ->where('id', $driverId)
+            ->where('role', 'booking_driver')
+            ->whereRaw('LOWER(TRIM(company_name)) = ?', [$companyName])
+            ->first();
+
+        abort_unless($driver, 404, 'Booking driver not found under your company.');
+        abort_if($driver->status !== 'pending_approval', 422, 'This booking driver is not awaiting approval.');
+
+        DB::table('users')->where('id', $driverId)->update([
+            'status' => 'active',
+            'updated_at' => now(),
+        ]);
+
+        return response()->json(['message' => 'Booking driver approved successfully.']);
+    }
+
     public function companies(): JsonResponse
     {
-        $companies = collect(config('booking.companies'))
-            ->map(fn (array $company) => [
-                'id' => $company['id'],
-                'slug' => $company['slug'],
-                'name' => $company['name'],
-                'location' => $company['location'],
-                'contact_phone' => $company['contact_phone'],
-                'contact_email' => $company['contact_email'],
-                'route_count' => count($company['routes']),
-            ])
+        $companies = DB::table('users')
+            ->where('role', 'booking_admin')
+            ->whereNotNull('company_name')
+            ->where('company_name', '!=', '')
+            ->orderBy('company_name')
+            ->orderBy('id')
+            ->get(['id', 'company_name', 'location', 'phone', 'email'])
+            ->groupBy(fn ($admin) => mb_strtolower(trim($admin->company_name)))
+            ->map(function ($admins) {
+                $admin = $admins->first();
+
+                return [
+                    'id' => $admin->id,
+                    'slug' => (string) $admin->id,
+                    'name' => $admin->company_name,
+                    'location' => $admin->location,
+                    'contact_phone' => $admin->phone,
+                    'contact_email' => $admin->email,
+                    'route_count' => DB::table('booking_routes')->where('booking_admin_id', $admin->id)->count(),
+                ];
+            })
             ->values();
 
         return response()->json(['companies' => $companies]);
@@ -28,31 +82,113 @@ class BookingController extends Controller
 
     public function company(string $slug): JsonResponse
     {
-        $company = $this->findCompany($slug);
+        abort_unless(ctype_digit($slug), 404, 'Booking company not found.');
 
-        abort_unless($company, 404, 'Booking company not found.');
+        $admin = DB::table('users')
+            ->where('id', (int) $slug)
+            ->where('role', 'booking_admin')
+            ->whereNotNull('company_name')
+            ->first(['id', 'company_name', 'location', 'phone', 'email']);
+
+        abort_unless($admin, 404, 'Booking company not found.');
 
         return response()->json([
             'company' => [
-                'id' => $company['id'],
-                'slug' => $company['slug'],
-                'name' => $company['name'],
-                'location' => $company['location'],
-                'contact_phone' => $company['contact_phone'],
-                'contact_email' => $company['contact_email'],
-                'routes' => collect($company['routes'])->map(fn (array $route) => [
-                    'id' => $route['id'],
-                    'name' => $route['name'],
-                    'departure' => $route['departure'],
-                    'destination' => $route['destination'],
-                    'fare' => $route['fare'],
-                ])->values(),
+                'id' => $admin->id,
+                'slug' => (string) $admin->id,
+                'name' => $admin->company_name,
+                'location' => $admin->location,
+                'contact_phone' => $admin->phone,
+                'contact_email' => $admin->email,
+                'routes' => DB::table('booking_routes')
+                    ->where('booking_admin_id', $admin->id)
+                    ->orderBy('route_name')
+                    ->get()
+                    ->map(fn ($route) => $this->formatStoredRoute($route)),
             ],
         ]);
     }
 
+    public function adminRoutes(Request $request): JsonResponse
+    {
+        $admin = $request->user();
+        abort_unless($admin && $admin->role === 'booking_admin', 403, 'Only booking admins can manage booking routes.');
+
+        return response()->json([
+            'routes' => DB::table('booking_routes')->where('booking_admin_id', $admin->id)->orderByDesc('id')->get()
+                ->map(fn ($route) => $this->formatStoredRoute($route)),
+        ]);
+    }
+
+    public function createAdminRoute(Request $request): JsonResponse
+    {
+        $admin = $request->user();
+        abort_unless($admin && $admin->role === 'booking_admin', 403, 'Only booking admins can manage booking routes.');
+
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'departure' => ['required', 'string', 'max:255'],
+            'destination' => ['required', 'string', 'max:255', 'different:departure'],
+            'fare' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
+        ]);
+
+        $id = DB::transaction(function () use ($data, $admin) {
+            $routeId = DB::table('booking_routes')->insertGetId([
+                'booking_admin_id' => $admin->id,
+                'route_name' => $data['name'],
+                'location' => $data['departure'].' to '.$data['destination'],
+                'fare' => $data['fare'],
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            foreach ([$data['departure'], $data['destination']] as $index => $terminal) {
+                DB::table('booking_route_terminals')->insert([
+                    'booking_route_id' => $routeId,
+                    'terminal_name' => $terminal,
+                    'terminal_order' => $index + 1,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
+
+            return $routeId;
+        });
+
+        return response()->json(['route' => $this->formatStoredRoute(DB::table('booking_routes')->where('id', $id)->first())], 201);
+    }
+
+    private function formatStoredRoute(object $route): array
+    {
+        $terminals = DB::table('booking_route_terminals')->where('booking_route_id', $route->id)
+            ->orderBy('terminal_order')->get(['id', 'terminal_name', 'terminal_order']);
+
+        return [
+            'id' => $route->id,
+            'route_name' => $route->route_name,
+            'name' => $route->route_name,
+            'departure' => $terminals->first()->terminal_name ?? null,
+            'destination' => $terminals->last()->terminal_name ?? null,
+            'location' => $route->location,
+            'fare' => $route->fare === null ? null : (float) $route->fare,
+            'terminals' => $terminals,
+        ];
+    }
+
     public function route(int $routeId): JsonResponse
     {
+        $storedRoute = DB::table('booking_routes')->join('users', 'users.id', '=', 'booking_routes.booking_admin_id')
+            ->where('booking_routes.id', $routeId)
+            ->select('booking_routes.*', 'users.company_name')
+            ->first();
+
+        if ($storedRoute) {
+            return response()->json([
+                'company' => ['id' => $storedRoute->booking_admin_id, 'name' => $storedRoute->company_name],
+                'route' => [...$this->formatStoredRoute($storedRoute), 'trips' => collect()],
+            ]);
+        }
+
         [$company, $route] = $this->findRoute($routeId);
 
         abort_unless($route, 404, 'Route not found.');
@@ -140,29 +276,10 @@ class BookingController extends Controller
 
     public function driverOverview(int $driverId): JsonResponse
     {
-        $assignedTrips = collect(config('booking.companies'))
-            ->flatMap(function (array $company) use ($driverId) {
-                return collect($company['routes'])->flatMap(function (array $route) use ($company, $driverId) {
-                    return collect($route['trips'])
-                        ->where('driver_id', $driverId)
-                        ->map(fn (array $trip) => [
-                            'company_name' => $company['name'],
-                            'route_name' => $route['name'],
-                            'departure' => $route['departure'],
-                            'destination' => $route['destination'],
-                            'trip_id' => $trip['id'],
-                            'time' => $trip['time'],
-                            'fare' => $trip['fare'],
-                            'major_departure_point' => $trip['major_departure_point'],
-                            'passengers' => $trip['passengers'],
-                        ]);
-                });
-            })
-            ->values();
-
         return response()->json([
             'driver_id' => $driverId,
-            'assigned_trips' => $assignedTrips,
+            // Booking trip assignments are not persisted yet; never expose sample config records as driver assignments.
+            'assigned_trips' => [],
         ]);
     }
 

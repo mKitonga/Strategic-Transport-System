@@ -52,7 +52,7 @@ export default function ProtectedLayout() {
       ],
       booking_admin: [
         { name: 'Approve Drivers', path: '/dashboard/booking-admin/drivers' },
-        { name: 'Routes & Fares', path: '/dashboard/booking-admin/routes' },
+        { name: 'Routes and Terminals', path: '/dashboard/booking-admin/routes' },
         { name: 'Bus Availability', path: '/dashboard/booking-admin/buses' },
         { name: 'Passenger List', path: '/dashboard/booking-admin/passengers' },
         { name: 'Complaints', path: '/dashboard/booking-admin/complaints' },

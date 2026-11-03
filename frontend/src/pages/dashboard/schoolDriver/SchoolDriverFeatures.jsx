@@ -67,6 +67,10 @@ export const DriverAlerts = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const pageSize = 10;
 
   const loadAlerts = async () => {
     setLoading(true);
@@ -78,54 +82,51 @@ export const DriverAlerts = () => {
 
   useEffect(() => { loadAlerts(); }, []);
 
+  const filteredAlerts = alerts.filter((alert) => `${alert.subject || ''} ${alert.message || ''} ${alert.status || ''}`.toLowerCase().includes(search.toLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(filteredAlerts.length / pageSize));
+  const visibleAlerts = filteredAlerts.slice(page * pageSize, (page + 1) * pageSize);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     try {
       await sendSchoolDriverAlert(form);
       setSuccess("Alert sent to School Admin successfully.");
       setForm({ subject: '', message: '' });
+      setModalOpen(false);
       await loadAlerts();
     } catch (err) { setError(err.message); }
   };
 
   return (
-    <div className="role-middle-grid">
-      <article className="card">
-        <h1 className="page-title">Send Alert</h1>
-        <p className="page-subtitle">Notify the school administration of any transit issues, delays, or emergencies.</p>
+    <div>
+      <h1 className="page-title">Admin Alerts</h1>
+      <p className="page-subtitle">Notify the school administration of transit issues, delays, or emergencies and review alerts you have sent.</p>
+      {error && !modalOpen ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
+      {success ? <p className="auth-feedback table-success-text">{success}</p> : null}
 
-        {error && <p className="auth-feedback auth-feedback-error">{error}</p>}
-        {success && <p className="auth-feedback table-success-text">{success}</p>}
-
-        <form onSubmit={handleSubmit} className="auth-page-form" style={{ marginTop: '1rem' }}>
-          <div className="form-group">
-            <label className="form-label">Subject</label>
-            <input className="form-input" required value={form.subject} onChange={e => setForm({...form, subject: e.target.value})} placeholder="e.g. Delayed by traffic" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Message</label>
-            <textarea className="form-input" rows="4" required value={form.message} onChange={e => setForm({...form, message: e.target.value})} placeholder="Details..." />
-          </div>
-          <button type="submit" className="btn btn-primary">Send Alert</button>
-        </form>
-      </article>
-
-      <article className="card">
-        <h3>Previous Alerts</h3>
-        <div className="stack-list" style={{ marginTop: '1rem' }}>
-          {!loading && alerts.length === 0 && <p className="page-subtitle">No alerts sent yet.</p>}
-          {alerts.map(alert => (
-            <div key={alert.id} className="stack-item" style={{ borderLeft: alert.status === 'open' ? '4px solid var(--color-brand)' : 'none' }}>
-              <strong>{alert.subject}</strong>
-              <p style={{ fontSize: '0.85rem' }}>{alert.message}</p>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                <span>{new Date(alert.created_at).toLocaleString()}</span>
-                <span>{alert.status}</span>
-              </div>
-            </div>
-          ))}
+      <section className="card route-directory-panel">
+        <div className="route-directory-toolbar">
+          <button className="btn btn-outline route-register-button" onClick={() => { setError(''); setSuccess(''); setModalOpen(true); }}>Send alert</button>
+          <span className="route-count">{filteredAlerts.length} {filteredAlerts.length === 1 ? 'alert' : 'alerts'}</span>
+          <div className="route-search-row"><input className="form-input" aria-label="Search alerts" placeholder="Search subject, message or status" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} /><span className="route-search-icon" aria-hidden="true">&#128269;</span></div>
+          <div className="route-pagination" aria-label="Alert pages"><button type="button" aria-label="Previous page" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>&lsaquo;</button><span>{page + 1} / {pageCount}</span><button type="button" aria-label="Next page" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}>&rsaquo;</button></div>
         </div>
-      </article>
+        <div className="data-table-wrap"><table className="data-table route-directory-table">
+          <thead><tr><th>#</th><th>Subject</th><th>Message</th><th>Sent</th><th>Status</th></tr></thead>
+          <tbody>
+            {loading && <tr><td colSpan="5" className="empty-table-cell">Loading alerts...</td></tr>}
+            {!loading && visibleAlerts.length === 0 && <tr><td colSpan="5" className="empty-table-cell">{alerts.length ? 'No alerts match your search.' : 'No alerts sent yet.'}</td></tr>}
+            {!loading && visibleAlerts.map((alert, index) => <tr key={alert.id}><td>{page * pageSize + index + 1}</td><td><strong>{alert.subject}</strong></td><td style={{ minWidth: '280px', whiteSpace: 'normal' }}>{alert.message}</td><td>{alert.created_at ? new Date(alert.created_at).toLocaleString() : '—'}</td><td><span className={`role-chip ${alert.status === 'open' ? 'passive' : ''}`}>{alert.status}</span></td></tr>)}
+          </tbody>
+        </table></div>
+      </section>
+
+      {modalOpen ? <div className="dashboard-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setModalOpen(false); }}><section className="dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="school-driver-alert-title">
+        <div className="dashboard-modal-heading"><div><h2 id="school-driver-alert-title">Send alert to school admin</h2><p className="page-subtitle">Describe the transit issue, delay, or emergency.</p></div><button type="button" className="dashboard-modal-close" aria-label="Close" onClick={() => setModalOpen(false)}>×</button></div>
+        {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
+        <form onSubmit={handleSubmit} className="auth-page-form"><div className="form-group"><label className="form-label">Subject</label><input className="form-input" required value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })} placeholder="e.g. Delayed by traffic" /></div><div className="form-group"><label className="form-label">Message</label><textarea className="form-input" rows="4" required value={form.message} onChange={(event) => setForm({ ...form, message: event.target.value })} placeholder="Details..." /></div><div className="dashboard-modal-actions"><button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)}>Cancel</button><button type="submit" className="btn btn-primary">Send alert</button></div></form>
+      </section></div> : null}
     </div>
   );
 };

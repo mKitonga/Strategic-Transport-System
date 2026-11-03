@@ -646,7 +646,7 @@ export const BookingServices = () => {
     <SectionIntro
       eyebrow="Booking Services"
       title="Long-distance travel companies open to passengers"
-      body="Company, route, and fare information is loaded from the booking service configured in the backend."
+      body="Browse company routes and fares returned by the booking service."
     />
     <div className="info-grid">
       {companies.map((company) => (
@@ -657,9 +657,14 @@ export const BookingServices = () => {
           </div>
           {company.routes?.length ? company.routes.map((route) => (
             <p key={route.id}>
-              <strong>{route.name}:</strong> {route.departure} to {route.destination} - KES {Number(route.fare).toLocaleString()}
+              <strong>{route.route_name || route.name}:</strong>{' '}
+              {route.departure && route.destination
+                ? `${route.departure} to ${route.destination}`
+                : (route.location || 'Location not provided')}
+              {route.terminals?.length ? ` — ${route.terminals.map((terminal) => terminal.terminal_name).join(' → ')}` : ''}
+              {route.fare !== undefined && route.fare !== null ? ` | KES ${Number(route.fare).toLocaleString()}` : ''}
             </p>
-          )) : <p>No routes configured for this company.</p>}
+          )) : <p>No routes are available for this company yet.</p>}
           {company.contact_phone && <p><strong>Phone:</strong> {company.contact_phone}</p>}
           {company.contact_email && <p><strong>Email:</strong> {company.contact_email}</p>}
           <Link to="/dashboard/passenger/book" className="inline-route-link">
@@ -668,7 +673,7 @@ export const BookingServices = () => {
         </article>
       ))}
       {loading && <p className="page-subtitle">Loading booking services from the backend...</p>}
-      {!loading && !error && companies.length === 0 && <p className="page-subtitle">No booking companies are configured yet.</p>}
+      {!loading && !error && companies.length === 0 && <p className="page-subtitle">No booking companies are registered yet.</p>}
       {error && <p role="alert" className="page-subtitle" style={{ color: 'var(--color-danger)' }}>{error}</p>}
     </div>
   </div>

@@ -123,6 +123,10 @@ Route::prefix('parent')->middleware('auth:sanctum')->group(function () {
 });
 
 Route::prefix('booking-admin')->middleware('auth:sanctum')->group(function () {
+    Route::get('/drivers', [BookingController::class, 'drivers']);
+    Route::post('/drivers/{driverId}/approve', [BookingController::class, 'approveDriver']);
+    Route::get('/routes', [BookingController::class, 'adminRoutes']);
+    Route::post('/routes', [BookingController::class, 'createAdminRoute']);
     Route::get('/complaints', [BookingController::class, 'complaints']);
     Route::post('/complaints/{id}/respond', [BookingController::class, 'respondComplaint']);
     Route::get('/reports/manifest', [\App\Http\Controllers\Api\ReportsController::class, 'bookingManifest']);

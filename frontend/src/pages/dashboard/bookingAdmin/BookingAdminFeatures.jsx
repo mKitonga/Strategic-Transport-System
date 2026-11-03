@@ -1,191 +1,202 @@
 import React, { useState, useEffect } from 'react';
-import { fetchBookingComplaints, respondToBookingComplaint, fetchBookingManifestReport } from '../../../services/bookingAdminApi';
+import { fetchBookingComplaints, respondToBookingComplaint, fetchBookingManifestReport, fetchBookingRoutes, createBookingRoute, fetchBookingDrivers, approveBookingDriver } from '../../../services/bookingAdminApi';
 
 // === 1. Approve Booking Drivers Component ===
 export const ApproveBookingDrivers = () => {
-  const [drivers, setDrivers] = useState([
-    { id: 1, name: 'Samuel Mwangi', plate: 'KDC 456X', capacity: 45, status: 'pending' },
-    { id: 2, name: 'Peter Omondi', plate: 'KDG 112Y', capacity: 33, status: 'approved' }
-  ]);
+  const [drivers, setDrivers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [approvingDriverId, setApprovingDriverId] = useState(null);
+  const pageSize = 10;
 
-  const handleApprove = (id) => {
-    setDrivers(drivers.map(d => d.id === id ? { ...d, status: 'approved' } : d));
+  const loadDrivers = async () => {
+    setLoading(true);
+    try {
+      const response = await fetchBookingDrivers();
+      setDrivers(response.drivers || []);
+      setError('');
+    } catch (requestError) {
+      setError(requestError.message || 'Could not load booking drivers.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handlePrint = () => {
-    window.print();
+  useEffect(() => { loadDrivers(); }, []);
+
+  const filteredDrivers = drivers.filter((driver) => `${driver.name || ''} ${driver.phone || ''} ${driver.email || ''} ${driver.number_plate || ''} ${driver.company_name || ''} ${driver.status || ''}`.toLowerCase().includes(search.toLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(filteredDrivers.length / pageSize));
+  const visibleDrivers = filteredDrivers.slice(page * pageSize, (page + 1) * pageSize);
+
+  const handleApprove = async (driverId) => {
+    setApprovingDriverId(driverId);
+    setError('');
+    try {
+      await approveBookingDriver(driverId);
+      await loadDrivers();
+    } catch (requestError) {
+      setError(requestError.message || 'Could not approve this driver.');
+    } finally {
+      setApprovingDriverId(null);
+    }
   };
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-        <div>
-          <h1 className="page-title" style={{ marginBottom: '0.5rem' }}>Approve Booking Drivers</h1>
-          <p className="page-subtitle" style={{ marginBottom: '0' }}>Review and approve drivers who registered under your booking company.</p>
+      <h1 className="page-title">Approve Booking Drivers</h1>
+      <p className="page-subtitle">Review drivers registered with the same booking service name as your account.</p>
+      {error && <p role="alert" className="auth-feedback auth-feedback-error">{error}</p>}
+      <section className="card route-directory-panel">
+        <div className="route-directory-toolbar route-directory-toolbar-no-action">
+          <span className="route-count">{filteredDrivers.length} {filteredDrivers.length === 1 ? 'driver' : 'drivers'}</span>
+          <div className="route-search-row"><input className="form-input" aria-label="Search booking drivers" placeholder="Search name, plate or contact" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} /><span className="route-search-icon" aria-hidden="true">&#128269;</span></div>
+          <div className="route-pagination" aria-label="Driver pages"><button type="button" aria-label="Previous page" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>&lsaquo;</button><span>{page + 1} / {pageCount}</span><button type="button" aria-label="Next page" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}>&rsaquo;</button></div>
         </div>
-        <button className="btn btn-primary" onClick={handlePrint} style={{ width: 'auto', padding: '0.5rem 1.5rem' }}>
-          Print / Download List
-        </button>
-      </div>
-      
-      <div className="card" style={{ padding: '0', marginTop: '2rem' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-glass)' }}>
-              <th style={{ padding: '1rem' }}>Driver Name</th>
-              <th style={{ padding: '1rem' }}>Plates</th>
-              <th style={{ padding: '1rem' }}>Bus Capacity</th>
-              <th style={{ padding: '1rem' }}>Action</th>
-            </tr>
-          </thead>
+        <div className="data-table-wrap"><table className="data-table route-directory-table">
+          <thead><tr><th>#</th><th>Driver</th><th>Phone</th><th>Email</th><th>Number plate</th><th>Bus capacity</th><th>Status</th><th>Action</th></tr></thead>
           <tbody>
-            {drivers.map(driver => (
-              <tr key={driver.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                <td style={{ padding: '1rem' }}>{driver.name}</td>
-                <td style={{ padding: '1rem' }}>{driver.plate}</td>
-                <td style={{ padding: '1rem' }}>{driver.capacity} Seats</td>
-                <td style={{ padding: '1rem' }}>
-                  {driver.status === 'pending' ? (
-                    <button className="btn btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.875rem' }} onClick={() => handleApprove(driver.id)}>Approve</button>
-                  ) : (
-                    <span style={{ color: 'var(--color-success)', fontWeight: 'bold' }}>Approved</span>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {loading && <tr><td colSpan="8" className="empty-table-cell">Loading drivers from the backend...</td></tr>}
+            {!loading && visibleDrivers.length === 0 && <tr><td colSpan="8" className="empty-table-cell">{drivers.length ? 'No drivers match your search.' : 'No drivers registered under your booking company yet.'}</td></tr>}
+            {!loading && visibleDrivers.map((driver, index) => <tr key={driver.id}>
+              <td>{page * pageSize + index + 1}</td><td><strong>{driver.name}</strong></td><td>{driver.phone || '-'}</td><td>{driver.email || '-'}</td><td>{driver.number_plate || '-'}</td><td>{driver.bus_capacity ?? '-'}</td>
+              <td><span className={`role-chip ${driver.status === 'pending_approval' ? 'passive' : ''}`}>{driver.status === 'pending_approval' ? 'Pending approval' : driver.status}</span></td>
+              <td>{driver.status === 'pending_approval' ? <button type="button" className="btn btn-primary action-btn" disabled={approvingDriverId === driver.id} onClick={() => handleApprove(driver.id)}>{approvingDriverId === driver.id ? 'Approving...' : 'Approve'}</button> : <span className="table-success-text">Approved</span>}</td>
+            </tr>)}
           </tbody>
-        </table>
-      </div>
+        </table></div>
+      </section>
     </div>
   );
 };
 
 // === 2. Upload Routes Component ===
 export const UploadRoutes = () => {
+  const [routes, setRoutes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [form, setForm] = useState({ name: '', departure: '', destination: '', fare: '' });
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const pageSize = 10;
+
+  const loadRoutes = async () => {
+    setLoading(true);
+    try {
+      const response = await fetchBookingRoutes();
+      setRoutes(response.routes || []);
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Could not load routes.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadRoutes(); }, []);
+
+  const submitRoute = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const response = await createBookingRoute({ ...form, fare: Number(form.fare) });
+      setRoutes((current) => [response.route, ...current]);
+      setPage(0);
+      setForm({ name: '', departure: '', destination: '', fare: '' });
+      setModalOpen(false);
+    } catch (err) {
+      setError(err.message || 'Could not register this route.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const routeRows = routes.map((route) => {
+    const terminals = (route.terminals || [])
+      .map((terminal) => typeof terminal === 'string' ? terminal : (terminal.terminal_name || terminal.name))
+      .filter(Boolean);
+
+    return {
+      ...route,
+      displayName: route.route_name || route.name || 'Unnamed route',
+      departure: route.departure || terminals[0] || '-',
+      destination: route.destination || terminals[terminals.length - 1] || '-',
+      terminals,
+    };
+  });
+  const filteredRoutes = routeRows.filter((route) => `${route.displayName} ${route.location || ''} ${route.departure} ${route.destination} ${route.terminals.join(' ')} ${route.fare ?? ''}`.toLowerCase().includes(search.toLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(filteredRoutes.length / pageSize));
+  const visibleRoutes = filteredRoutes.slice(page * pageSize, (page + 1) * pageSize);
+
   return (
     <div>
-      <h1 className="page-title">Upload Routes & Fares</h1>
-      <p className="page-subtitle">Manage routes, terminals, and their associated pricing.</p>
-      
-      <div className="card" style={{ maxWidth: '600px', marginBottom: '2rem' }}>
-        <h3 style={{ marginBottom: '1.5rem', color: 'var(--color-brand)' }}>Add New Route</h3>
-        <div className="form-group">
-          <label className="form-label">Departure Terminal</label>
-          <input type="text" className="form-input" placeholder="e.g. Nairobi CBD" />
+      <h1 className="page-title">Routes and Terminals</h1>
+      <p className="page-subtitle">Register booking service routes with their departure, destination and fare. These records are separate from SACCO and school routes.</p>
+      <section className="card route-directory-panel">
+        <div className="route-directory-toolbar">
+          <button type="button" className="btn btn-outline route-register-button" onClick={() => { setError(''); setModalOpen(true); }}>Register route</button>
+          <span className="route-count">{filteredRoutes.length} {filteredRoutes.length === 1 ? 'route' : 'routes'}</span>
+          <div className="route-search-row">
+            <input className="form-input" aria-label="Search booking routes" placeholder="Search route, departure or destination" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} />
+            <span className="route-search-icon" aria-hidden="true">&#128269;</span>
+          </div>
+          <div className="route-pagination" aria-label="Route pages">
+            <button type="button" aria-label="Previous page" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>&lsaquo;</button>
+            <span>{page + 1} / {pageCount}</span>
+            <button type="button" aria-label="Next page" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}>&rsaquo;</button>
+          </div>
         </div>
-        <div className="form-group">
-          <label className="form-label">Destination Terminal</label>
-          <input type="text" className="form-input" placeholder="e.g. Mombasa" />
-        </div>
-        <div className="form-group">
-          <label className="form-label">Standard Fare (KES)</label>
-          <input type="number" className="form-input" placeholder="1500" />
-        </div>
-        <button className="btn btn-primary">Upload Route</button>
-      </div>
-
-      <div className="card" style={{ padding: '0' }}>
-        <h3 style={{ padding: '1.5rem', borderBottom: '1px solid var(--color-border)' }}>Active Routes</h3>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-glass)' }}>
-              <th style={{ padding: '1rem' }}>Departure</th>
-              <th style={{ padding: '1rem' }}>Destination</th>
-              <th style={{ padding: '1rem' }}>Fare (KES)</th>
-            </tr>
-          </thead>
+        {error && !modalOpen && <p role="alert" className="auth-feedback auth-feedback-error" style={{ margin: '0 22px 14px' }}>{error}</p>}
+        <div className="data-table-wrap">
+          <table className="data-table route-directory-table">
+          <thead><tr><th>#</th><th>Route</th><th>Departure</th><th>Destination</th><th>Fare (KES)</th></tr></thead>
           <tbody>
-            <tr>
-              <td style={{ padding: '1rem' }}>Nairobi CBD</td>
-              <td style={{ padding: '1rem' }}>Mombasa</td>
-              <td style={{ padding: '1rem' }}>1,500</td>
-            </tr>
-            <tr>
-              <td style={{ padding: '1rem' }}>Nairobi CBD</td>
-              <td style={{ padding: '1rem' }}>Kisumu</td>
-              <td style={{ padding: '1rem' }}>1,200</td>
-            </tr>
+            {loading ? <tr><td colSpan="5" className="empty-table-cell">Loading routes...</td></tr> : visibleRoutes.length ? visibleRoutes.map((route, index) => <tr key={route.id}><td>{page * pageSize + index + 1}</td><td><strong>{route.displayName}</strong></td><td>{route.departure}</td><td>{route.destination}</td><td>{route.fare === undefined || route.fare === null ? 'Not set' : Number(route.fare).toLocaleString()}</td></tr>) : <tr><td colSpan="5" className="empty-table-cell">{routes.length ? 'No routes match your search.' : 'No routes have been registered yet.'}</td></tr>}
           </tbody>
-        </table>
-      </div>
+          </table>
+        </div>
+      </section>
+      {modalOpen && <div className="dashboard-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setModalOpen(false); }}>
+        <section className="dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="booking-route-modal-title">
+          <div className="dashboard-modal-heading"><div><h2 id="booking-route-modal-title">Register booking route</h2><p className="page-subtitle">Enter the booking route details and passenger fare.</p></div><button type="button" className="dashboard-modal-close" aria-label="Close" onClick={() => setModalOpen(false)} disabled={saving}>&times;</button></div>
+          {error && <p role="alert" className="page-subtitle" style={{ color: 'var(--color-danger)' }}>{error}</p>}
+          <form className="auth-page-form" onSubmit={submitRoute}>
+            <div className="form-group"><label className="form-label" htmlFor="booking-route-name">Route name</label><input id="booking-route-name" className="form-input" maxLength="255" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></div>
+            <div className="auth-grid auth-grid-two">
+              <div className="form-group"><label className="form-label" htmlFor="booking-route-departure">Departure terminal</label><input id="booking-route-departure" className="form-input" maxLength="255" required value={form.departure} onChange={(event) => setForm({ ...form, departure: event.target.value })} /></div>
+              <div className="form-group"><label className="form-label" htmlFor="booking-route-destination">Destination terminal</label><input id="booking-route-destination" className="form-input" maxLength="255" required value={form.destination} onChange={(event) => setForm({ ...form, destination: event.target.value })} /></div>
+            </div>
+            <div className="form-group"><label className="form-label" htmlFor="booking-route-fare">Fare (KES)</label><input id="booking-route-fare" className="form-input" type="number" min="0" step="0.01" required value={form.fare} onChange={(event) => setForm({ ...form, fare: event.target.value })} /></div>
+            <div className="dashboard-modal-actions"><button type="button" className="btn btn-outline" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button><button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save booking route'}</button></div>
+          </form>
+        </section>
+      </div>}
     </div>
   );
 };
-
-// === 3. Bus Availability Component ===
-export const BusAvailability = () => {
-  return (
-    <div>
-      <h1 className="page-title">Bus Availability</h1>
-      <p className="page-subtitle">Monitor available buses, their assigned drivers, and departure times.</p>
-      
-      <div className="card-grid">
-        <div className="card" style={{ borderLeft: '4px solid var(--color-success)' }}>
-          <h3 style={{ marginBottom: '0.5rem' }}>Mombasa Express</h3>
-          <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Route: Nairobi - Mombasa</p>
-          <div style={{ background: 'var(--color-bg-glass)', padding: '1rem', borderRadius: '8px' }}>
-            <p><strong>Driver:</strong> Peter Omondi</p>
-            <p><strong>Plate:</strong> KDG 112Y</p>
-            <p><strong>Departure:</strong> Today, 10:00 PM</p>
-            <p style={{ marginTop: '0.5rem', color: 'var(--color-success)', fontWeight: 'bold' }}>Status: Available (12 seats left)</p>
-          </div>
-        </div>
-
-        <div className="card" style={{ borderLeft: '4px solid var(--color-brand)' }}>
-          <h3 style={{ marginBottom: '0.5rem' }}>Kisumu Shuttle</h3>
-          <p style={{ color: 'var(--color-text-muted)', marginBottom: '1rem' }}>Route: Nairobi - Kisumu</p>
-          <div style={{ background: 'var(--color-bg-glass)', padding: '1rem', borderRadius: '8px' }}>
-            <p><strong>Driver:</strong> Samuel Mwangi</p>
-            <p><strong>Plate:</strong> KDC 456X</p>
-            <p><strong>Departure:</strong> Tomorrow, 06:00 AM</p>
-            <p style={{ marginTop: '0.5rem', color: 'var(--color-brand)', fontWeight: 'bold' }}>Status: Boarding (4 seats left)</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// === 4. Passenger List Component ===
+export const BusAvailability = () => (
+  <div>
+    <h1 className="page-title">Bus Availability</h1>
+    <p className="page-subtitle">Bus schedules and seat availability will appear here when the booking backend provides persisted availability data.</p>
+    <section className="card route-directory-panel">
+      <div className="data-table-wrap"><table className="data-table route-directory-table">
+        <thead><tr><th>#</th><th>Route</th><th>Departure point</th><th>Driver</th><th>Departure time</th><th>Seats available</th></tr></thead>
+        <tbody><tr><td colSpan="6" className="empty-table-cell">No persisted bus availability records are available.</td></tr></tbody>
+      </table></div>
+    </section>
+  </div>
+);
 export const PassengerList = () => {
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <div>
-          <h1 className="page-title" style={{ marginBottom: '0.5rem' }}>Passenger Manifest</h1>
-          <p className="page-subtitle" style={{ marginBottom: '0' }}>List of passengers who have booked and paid.</p>
-        </div>
-        <select className="form-select" style={{ width: 'auto' }}>
-          <option>Mombasa Express - Today 10:00 PM</option>
-          <option>Kisumu Shuttle - Tomorrow 06:00 AM</option>
-        </select>
-      </div>
-
-      <div className="card" style={{ padding: '0' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-glass)' }}>
-              <th style={{ padding: '1rem' }}>Seat #</th>
-              <th style={{ padding: '1rem' }}>Passenger Name</th>
-              <th style={{ padding: '1rem' }}>Contact</th>
-              <th style={{ padding: '1rem' }}>Payment Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-              <td style={{ padding: '1rem', fontWeight: 'bold', color: 'var(--color-brand)' }}>01</td>
-              <td style={{ padding: '1rem' }}>Alice Wanjiku</td>
-              <td style={{ padding: '1rem' }}>+254 711 000001</td>
-              <td style={{ padding: '1rem' }}><span style={{ color: 'var(--color-success)', fontWeight: 'bold' }}>Paid</span></td>
-            </tr>
-            <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-              <td style={{ padding: '1rem', fontWeight: 'bold', color: 'var(--color-brand)' }}>02</td>
-              <td style={{ padding: '1rem' }}>Brian Kiprotich</td>
-              <td style={{ padding: '1rem' }}>+254 722 000002</td>
-              <td style={{ padding: '1rem' }}><span style={{ color: 'var(--color-success)', fontWeight: 'bold' }}>Paid</span></td>
-            </tr>
-          </tbody>
-        </table>
+      <h1 className="page-title">Passenger Manifest</h1>
+      <p className="page-subtitle">Passenger manifest data will appear here when the booking backend exposes it to administrators.</p>
+      <div className="card text-center" style={{ marginTop: '1.5rem' }}>
+        <p className="page-subtitle">No passenger manifest data is currently available from the backend.</p>
       </div>
     </div>
   );
@@ -197,22 +208,35 @@ export const BookingComplaints = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [responses, setResponses] = useState({});
+  const [selectedComplaintId, setSelectedComplaintId] = useState(null);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const pageSize = 10;
 
   const loadComplaints = async () => {
     setLoading(true);
     try {
-      const res = await fetchBookingComplaints();
-      setComplaints(res.complaints || []);
+      const response = await fetchBookingComplaints();
+      setComplaints(response.complaints || []);
     } catch (err) { setError(err.message); } finally { setLoading(false); }
   };
 
   useEffect(() => { loadComplaints(); }, []);
 
-  const handleRespond = async (id) => {
-    if (!responses[id]) return;
+  const filteredComplaints = complaints.filter((complaint) => `${complaint.passenger_phone || ''} ${complaint.passenger_email || ''} ${complaint.route_name || ''} ${complaint.message || ''} ${complaint.status || ''}`.toLowerCase().includes(search.toLowerCase()));
+  const pageCount = Math.max(1, Math.ceil(filteredComplaints.length / pageSize));
+  const visibleComplaints = filteredComplaints.slice(page * pageSize, (page + 1) * pageSize);
+  const selectedComplaint = complaints.find((complaint) => String(complaint.id) === String(selectedComplaintId));
+
+  const handleRespond = async (event) => {
+    event.preventDefault();
+    const responseMessage = responses[selectedComplaintId]?.trim();
+    if (!responseMessage) return;
     try {
-      await respondToBookingComplaint(id, { response_message: responses[id] });
-      setResponses({ ...responses, [id]: '' });
+      await respondToBookingComplaint(selectedComplaintId, { response_message: responseMessage });
+      setResponses((current) => ({ ...current, [selectedComplaintId]: '' }));
+      setSelectedComplaintId(null);
+      setError('');
       await loadComplaints();
     } catch (err) { setError(err.message); }
   };
@@ -220,55 +244,29 @@ export const BookingComplaints = () => {
   return (
     <div>
       <h1 className="page-title">Booking Complaints</h1>
-      <p className="page-subtitle">View and address feedback directed towards your booking company.</p>
-      
-      {error && <p className="auth-feedback auth-feedback-error">{error}</p>}
-
-      <div className="card-grid">
-        {!loading && complaints.length === 0 && (
-          <div className="card text-center" style={{ gridColumn: '1 / -1' }}>
-            <p className="page-subtitle">No complaints found for your company.</p>
-          </div>
-        )}
-
-        {complaints.map(c => (
-          <div key={c.id} className="card" style={{ borderTop: c.status === 'open' ? '4px solid #ef4444' : '4px solid var(--color-success)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <h4 style={{ color: c.status === 'open' ? '#ef4444' : 'var(--color-success)' }}>Passenger: {c.passenger_phone || c.passenger_email}</h4>
-              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>{new Date(c.created_at).toLocaleDateString()}</span>
-            </div>
-            <p><strong>Route:</strong> {c.route_name}</p>
-            <div style={{ background: 'rgba(0,0,0,0.1)', padding: '1rem', borderRadius: '8px', marginTop: '1rem' }}>
-              {c.message}
-            </div>
-            
-            {c.status === 'open' ? (
-              <>
-                <textarea 
-                  className="form-input" 
-                  style={{ marginTop: '1rem', height: '80px' }} 
-                  placeholder="Type your resolution..."
-                  value={responses[c.id] || ''}
-                  onChange={(e) => setResponses({ ...responses, [c.id]: e.target.value })}
-                ></textarea>
-                <button 
-                  className="btn btn-primary" 
-                  style={{ marginTop: '0.5rem' }}
-                  onClick={() => handleRespond(c.id)}
-                  disabled={!responses[c.id]}
-                >
-                  Send Resolution
-                </button>
-              </>
-            ) : (
-              <div style={{ marginTop: '1rem', color: 'var(--color-success)' }}>
-                <strong>Resolution:</strong>
-                <p>{c.response_message}</p>
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
+      <p className="page-subtitle">Review and respond to feedback directed to your booking company.</p>
+      {error && !selectedComplaint ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
+      <section className="card route-directory-panel">
+        <div className="route-directory-toolbar route-directory-toolbar-no-action">
+          <span className="route-count">{filteredComplaints.length} {filteredComplaints.length === 1 ? 'complaint' : 'complaints'}</span>
+          <div className="route-search-row"><input className="form-input" aria-label="Search booking complaints" placeholder="Search passenger, route or message" value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} /><span className="route-search-icon" aria-hidden="true">&#128269;</span></div>
+          <div className="route-pagination" aria-label="Complaint pages"><button type="button" aria-label="Previous page" disabled={page === 0} onClick={() => setPage((current) => Math.max(0, current - 1))}>&lsaquo;</button><span>{page + 1} / {pageCount}</span><button type="button" aria-label="Next page" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => Math.min(pageCount - 1, current + 1))}>&rsaquo;</button></div>
+        </div>
+        <div className="data-table-wrap"><table className="data-table route-directory-table">
+          <thead><tr><th>#</th><th>Passenger</th><th>Route</th><th>Complaint</th><th>Submitted</th><th>Status</th><th>Response</th><th>Action</th></tr></thead>
+          <tbody>
+            {loading && <tr><td colSpan="8" className="empty-table-cell">Loading complaints...</td></tr>}
+            {!loading && visibleComplaints.length === 0 && <tr><td colSpan="8" className="empty-table-cell">{complaints.length ? 'No complaints match your search.' : 'No complaints found for your company.'}</td></tr>}
+            {!loading && visibleComplaints.map((complaint, index) => <tr key={complaint.id}><td>{page * pageSize + index + 1}</td><td>{complaint.passenger_phone || complaint.passenger_email || 'Unknown'}</td><td>{complaint.route_name || '—'}</td><td style={{ minWidth: '240px', whiteSpace: 'normal' }}>{complaint.message}</td><td>{complaint.created_at ? new Date(complaint.created_at).toLocaleString() : '—'}</td><td><span className={`role-chip ${complaint.status === 'open' ? 'passive' : ''}`}>{complaint.status}</span></td><td style={{ minWidth: '200px', whiteSpace: 'normal' }}>{complaint.response_message || '—'}</td><td>{complaint.status === 'open' ? <button className="btn btn-primary action-btn" onClick={() => { setError(''); setSelectedComplaintId(complaint.id); }}>Respond</button> : <span className="table-success-text">Resolved</span>}</td></tr>)}
+          </tbody>
+        </table></div>
+      </section>
+      {selectedComplaint ? <div className="dashboard-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedComplaintId(null); }}><section className="dashboard-modal" role="dialog" aria-modal="true" aria-labelledby="booking-complaint-modal-title">
+        <div className="dashboard-modal-heading"><div><h2 id="booking-complaint-modal-title">Respond to complaint</h2><p className="page-subtitle">Passenger: {selectedComplaint.passenger_phone || selectedComplaint.passenger_email} | Route: {selectedComplaint.route_name}</p></div><button type="button" className="dashboard-modal-close" aria-label="Close" onClick={() => setSelectedComplaintId(null)}>×</button></div>
+        <div className="stack-item" style={{ marginBottom: '1rem', whiteSpace: 'pre-wrap' }}>{selectedComplaint.message}</div>
+        {error ? <p className="auth-feedback auth-feedback-error">{error}</p> : null}
+        <form className="auth-page-form" onSubmit={handleRespond}><div className="form-group"><label className="form-label">Resolution</label><textarea className="form-input" rows="4" placeholder="Write your resolution..." value={responses[selectedComplaintId] || ''} onChange={(event) => setResponses((current) => ({ ...current, [selectedComplaintId]: event.target.value }))} required /></div><div className="dashboard-modal-actions"><button type="button" className="btn btn-outline" onClick={() => setSelectedComplaintId(null)}>Cancel</button><button type="submit" className="btn btn-primary">Send resolution</button></div></form>
+      </section></div> : null}
     </div>
   );
 };
