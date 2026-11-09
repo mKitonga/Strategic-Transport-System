@@ -1,34 +1,10 @@
-import { getStoredSession } from './transportApi';
-
-async function request(path, { method = 'GET', body } = {}) {
-  const { token } = getStoredSession();
-  const headers = {
-    Accept: 'application/json',
-    Authorization: `Bearer ${token}`,
-  };
-
-  if (body) {
-    headers['Content-Type'] = 'application/json';
-  }
-
-  const response = await fetch(path, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  const data = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(data.message || 'Request failed.');
-  }
-
-  return data;
-}
+import { apiRequest as request } from './transportApi';
 
 export const fetchSaccoAdminOverview = () => request('/api/sacco-admin/overview');
 export const fetchSaccoAdminDrivers = () => request('/api/sacco-admin/drivers');
 export const approveSaccoDriver = (driverId) => request(`/api/sacco-admin/drivers/${driverId}/approve`, { method: 'POST' });
+export const blockSaccoDriver = (driverId) => request(`/api/sacco-admin/drivers/${driverId}/block`, { method: 'POST' });
+export const unblockSaccoDriver = (driverId) => request(`/api/sacco-admin/drivers/${driverId}/unblock`, { method: 'POST' });
 export const fetchSaccoRoutes = () => request('/api/sacco-admin/routes');
 export const createSaccoRoute = (payload) => request('/api/sacco-admin/routes', { method: 'POST', body: payload });
 export const fetchSaccoFares = () => request('/api/sacco-admin/fares');

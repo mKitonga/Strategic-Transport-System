@@ -1,8 +1,18 @@
 const API_BASE = ''
-const TOKEN_KEY = 'strategic_transport_token'
 const USER_KEY = 'strategic_transport_user'
+let csrfReady = false
 
-async function request(path, { method = 'GET', body, token } = {}) {
+function readCookie(name) {
+  return document.cookie.split('; ').find((cookie) => cookie.startsWith(`${name}=`))?.split('=').slice(1).join('=')
+}
+
+export async function apiRequest(path, { method = 'GET', body, token } = {}) {
+  const verb = method.toUpperCase()
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(verb) && !csrfReady) {
+    await fetch('/sanctum/csrf-cookie', { credentials: 'same-origin' })
+    csrfReady = true
+  }
+
   const headers = {
     Accept: 'application/json',
   }
@@ -11,14 +21,20 @@ async function request(path, { method = 'GET', body, token } = {}) {
     headers['Content-Type'] = 'application/json'
   }
 
+  const xsrf = readCookie('XSRF-TOKEN')
+  if (xsrf && !['GET', 'HEAD', 'OPTIONS'].includes(verb)) {
+    headers['X-XSRF-TOKEN'] = decodeURIComponent(xsrf)
+  }
+  // Optional explicit bearer token remains supported for non-browser API clients.
   if (token) {
     headers.Authorization = `Bearer ${token}`
   }
 
   const response = await fetch(`${API_BASE}${path}`, {
-    method,
+    method: verb,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    credentials: 'same-origin',
   })
 
   const data = await response.json().catch(() => ({}))
@@ -33,24 +49,26 @@ async function request(path, { method = 'GET', body, token } = {}) {
 }
 
 export function getStoredSession() {
-  const token = window.localStorage.getItem(TOKEN_KEY)
+  window.localStorage.removeItem('strategic_transport_token')
   const user = window.localStorage.getItem(USER_KEY)
 
   return {
-    token,
+    token: null,
     user: user ? JSON.parse(user) : null,
   }
 }
 
-export function storeSession(token, user) {
-  window.localStorage.setItem(TOKEN_KEY, token)
+export function storeSession(_token, user) {
+  window.localStorage.removeItem('strategic_transport_token')
   window.localStorage.setItem(USER_KEY, JSON.stringify(user))
 }
 
 export function clearStoredSession() {
-  window.localStorage.removeItem(TOKEN_KEY)
+  window.localStorage.removeItem('strategic_transport_token')
   window.localStorage.removeItem(USER_KEY)
 }
+
+const request = apiRequest
 
 export function fetchHomepage() {
   return request('/api/homepage')
@@ -72,6 +90,10 @@ export function loginUser(payload) {
     method: 'POST',
     body: payload,
   })
+}
+
+export function verifyAdminLogin(payload) {
+  return request('/api/auth/login/verify', { method: 'POST', body: payload })
 }
 
 export function fetchCurrentUser(token) {

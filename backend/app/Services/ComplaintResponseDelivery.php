@@ -23,7 +23,6 @@ class ComplaintResponseDelivery
                 });
                 $results['email'] = ['status' => 'sent', 'destination' => $complaint->passenger_email];
             } catch (Throwable $exception) {
-                report($exception);
                 $results['email'] = ['status' => 'failed', 'destination' => $complaint->passenger_email];
             }
         }
@@ -85,7 +84,6 @@ class ComplaintResponseDelivery
 
             return ['status' => 'failed', 'destination' => $phone, 'message' => 'The SMS provider did not accept the message.'];
         } catch (Throwable $exception) {
-            report($exception);
             return ['status' => 'failed', 'destination' => $phone, 'message' => 'Could not connect to the SMS provider.'];
         }
     }

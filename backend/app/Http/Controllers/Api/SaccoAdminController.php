@@ -75,6 +75,30 @@ class SaccoAdminController extends Controller
         ]);
     }
 
+    public function blockDriver(Request $request, int $driverId): JsonResponse
+    {
+        $admin = $this->requireSaccoAdmin($request);
+
+        $driver = DB::table('users')
+            ->where('id', $driverId)
+            ->where('role', 'sacco_driver')
+            ->where('sacco_name', $admin->sacco_name)
+            ->first();
+
+        abort_unless($driver, 404, 'Driver not found for this SACCO.');
+
+        DB::table('users')
+            ->where('id', $driverId)
+            ->update([
+                'status' => 'block',
+                'updated_at' => now(),
+            ]);
+
+        return response()->json([
+            'message' => 'Driver blocked successfully.',
+        ]);
+    }
+
     public function routes(Request $request): JsonResponse
     {
         $admin = $this->requireSaccoAdmin($request);

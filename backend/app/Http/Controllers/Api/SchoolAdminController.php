@@ -7,6 +7,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class SchoolAdminController extends Controller
 {
@@ -45,6 +46,7 @@ class SchoolAdminController extends Controller
                 'status' => 'active',
                 'updated_at' => now(),
             ]);
+        Log::info('Driver approval state changed.', ['event' => 'school_driver_approved', 'admin_id' => $admin->id, 'driver_id' => $driverId]);
 
         return response()->json([
             'message' => 'School driver approved successfully.',
@@ -350,6 +352,7 @@ class SchoolAdminController extends Controller
                 'created_at' => now(),
             ]
         );
+        Log::info('School trip fare state changed.', ['event' => 'school_trip_fare_saved', 'admin_id' => $admin->id, 'trip_id' => $tripId, 'route_id' => $route->id]);
 
         return response()->json([
             'message' => 'Closing trip fare saved successfully.',
@@ -488,6 +491,7 @@ class SchoolAdminController extends Controller
                 'approved_by' => $admin->id,
                 'updated_at' => now(),
             ]);
+        Log::info('School payment state changed.', ['event' => 'school_payment_approved', 'admin_id' => $admin->id, 'payment_id' => $paymentId]);
 
         return response()->json([
             'message' => 'Payment approved successfully.',
@@ -640,6 +644,7 @@ class SchoolAdminController extends Controller
                 'responded_at' => now(),
                 'updated_at' => now(),
             ]);
+        Log::info('Complaint response saved.', ['event' => 'complaint_responded', 'admin_id' => $admin->id, 'complaint_id' => $id]);
 
         return response()->json([
             'message' => 'Response recorded and passenger notified.',

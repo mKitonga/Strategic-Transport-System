@@ -103,6 +103,11 @@ export default function Register() {
 
     try {
       const response = await registerUser(formData);
+      if (response.requires_login) {
+        setError(response.message);
+        window.setTimeout(() => navigate('/auth/login', { replace: true }), 1800);
+        return;
+      }
       storeSession(response.token, response.user);
       window.localStorage.setItem('devMockRole', response.user.role);
       navigate(response.redirect_path || response.user.dashboard_path || '/dashboard', {

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchHomepage, fetchPublicDirectories } from '../../services/transportApi';
+import { apiRequest, fetchHomepage, fetchPublicDirectories } from '../../services/transportApi';
 import { fetchBookingCompanies, fetchBookingCompany } from '../../services/bookingApi';
 import TrafficMap from '../dashboard/shared/TrafficMap';
 
@@ -384,10 +384,8 @@ export const PassengerComplaints = () => {
     setOptionsLoading(true);
     setOptionsError('');
 
-    fetch('/api/complaints/options')
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.message || 'Could not load service operators.');
+    apiRequest('/api/complaints/options')
+      .then((data) => {
         if (!cancelled) {
           setOptions({
             saccos: data.saccos || [],
@@ -416,17 +414,8 @@ export const PassengerComplaints = () => {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch('/api/complaints', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      });
-      const result = await response.json();
-      if (response.ok) {
-        setSuccess(true);
-      } else {
-        setError(result.message || 'Something went wrong.');
-      }
+      await apiRequest('/api/complaints', { method: 'POST', body: formData });
+      setSuccess(true);
     } catch (err) {
       setError('Connection error.');
     } finally {

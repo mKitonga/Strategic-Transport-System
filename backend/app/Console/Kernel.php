@@ -12,7 +12,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        $schedule->command('sanctum:prune-expired --hours=24')->daily();
+        $schedule->call(fn () => \Illuminate\Support\Facades\DB::table('admin_login_challenges')->where('expires_at', '<', now())->delete())->hourly();
     }
 
     /**

@@ -187,7 +187,7 @@ class SaccoDriverController extends Controller
             }
         } catch (\Throwable $e) {
             $darajaError = 'An unexpected error stopped the Daraja request. Check the backend logs.';
-            Log::error('Daraja STK push exception: ' . $e->getMessage());
+            Log::error('Daraja STK push failed.', ['event' => 'daraja_stk_failed']);
         }
 
         $paymentId = DB::table('sacco_passenger_payments')->insertGetId([

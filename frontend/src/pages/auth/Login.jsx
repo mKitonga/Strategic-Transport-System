@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { loginUser, storeSession } from '../../services/transportApi';
+import { loginUser, storeSession, verifyAdminLogin } from '../../services/transportApi';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -10,6 +10,8 @@ export default function Login() {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [challengeId, setChallengeId] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -25,7 +27,14 @@ export default function Login() {
     setError('');
 
     try {
-      const response = await loginUser(formData);
+      const response = challengeId
+        ? await verifyAdminLogin({ challenge_id: challengeId, code: verificationCode })
+        : await loginUser(formData);
+      if (response.mfa_required) {
+        setChallengeId(response.challenge_id);
+        setError(response.message);
+        return;
+      }
       storeSession(response.token, response.user);
       window.localStorage.setItem('devMockRole', response.user.role);
       navigate(response.redirect_path || response.user.dashboard_path || '/dashboard', {
@@ -46,6 +55,7 @@ export default function Login() {
       </div>
 
       <form onSubmit={handleSubmit} className="auth-page-form">
+        {!challengeId ? <>
         <div className="form-group">
           <label className="form-label">Email Address</label>
           <input required name="email" type="email" className="form-input" placeholder="john@example.com" onChange={handleChange} value={formData.email} />
@@ -55,6 +65,10 @@ export default function Login() {
           <label className="form-label">Password</label>
           <input required name="password" type="password" className="form-input" placeholder="********" onChange={handleChange} value={formData.password} />
         </div>
+        </> : <div className="form-group">
+          <label className="form-label">Administrator email verification code</label>
+          <input required name="verification_code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" className="form-input" placeholder="6 digit code" value={verificationCode} onChange={(event) => setVerificationCode(event.target.value)} />
+        </div>}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem', marginTop: '-0.5rem' }}>
           <Link to="/auth/forgot-password" style={{ color: 'var(--color-brand)', fontSize: '0.85rem', textDecoration: 'none', fontWeight: 500 }}>
@@ -63,7 +77,7 @@ export default function Login() {
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Signing In...' : 'Sign In'}
+          {submitting ? 'Verifying...' : challengeId ? 'Verify and Sign In' : 'Sign In'}
         </button>
       </form>
 

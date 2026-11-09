@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   approveSaccoDriver,
+  blockSaccoDriver,
   assignSchoolDrivers,
   createSaccoRoute,
   dispatchQueueEntry,
@@ -13,6 +14,7 @@ import {
   markQueueEntryLeft,
   respondToComplaint,
   saveSaccoFare,
+  unblockSaccoDriver,
   fetchSaccoRevenueReport,
 } from '../../../services/saccoAdminApi';
 
@@ -24,6 +26,7 @@ export const ApproveDrivers = () => {
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [busyDriverId, setBusyDriverId] = useState(null);
 
   const loadDrivers = async () => {
     setLoading(true);
@@ -43,11 +46,29 @@ export const ApproveDrivers = () => {
   }, []);
 
   const handleApprove = async (driverId) => {
+    setBusyDriverId(driverId);
     try {
       await approveSaccoDriver(driverId);
       await loadDrivers();
     } catch (requestError) {
       setError(requestError.message);
+    } finally {
+      setBusyDriverId(null);
+    }
+  };
+
+  const handleDriverStatus = async (driver, action) => {
+    if (action === 'block' && !window.confirm(`Block ${driver.name} from using their SACCO account?`)) return;
+    setBusyDriverId(driver.id);
+    setError('');
+    try {
+      if (action === 'block') await blockSaccoDriver(driver.id);
+      else await unblockSaccoDriver(driver.id);
+      await loadDrivers();
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
+      setBusyDriverId(null);
     }
   };
 
@@ -89,12 +110,18 @@ export const ApproveDrivers = () => {
                   <td><StatusBadge value={driver.status} /></td>
                   <td>
                     {driver.status === 'pending_approval' ? (
-                      <button className="btn btn-primary action-btn" onClick={() => handleApprove(driver.id)}>
-                        Approve
+                      <button className="btn btn-primary action-btn" disabled={busyDriverId === driver.id} onClick={() => handleApprove(driver.id)}>
+                        {busyDriverId === driver.id ? 'Approving...' : 'Approve'}
                       </button>
-                    ) : (
-                      <span className="table-success-text">Approved</span>
-                    )}
+                    ) : driver.status === 'blocked' || driver.status === 'block' ? (
+                      <button className="btn btn-primary action-btn" disabled={busyDriverId === driver.id} onClick={() => handleDriverStatus(driver, 'unblock')}>
+                        {busyDriverId === driver.id ? 'Updating...' : 'Unblock'}
+                      </button>
+                    ) : driver.status === 'active' ? (
+                      <button className="btn btn-outline action-btn" disabled={busyDriverId === driver.id} onClick={() => handleDriverStatus(driver, 'block')}>
+                        {busyDriverId === driver.id ? 'Updating...' : 'Block'}
+                      </button>
+                    ) : <span className="table-success-text">{driver.status}</span>}
                   </td>
                 </tr>
               ))}

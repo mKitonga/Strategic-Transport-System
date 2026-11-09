@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\DarajaService;
 
@@ -228,6 +229,7 @@ class ParentController extends Controller
                 'created_at' => now(),
             ]
         );
+        Log::info('School payment prompt initiated.', ['event' => 'payment_prompt_initiated', 'parent_id' => $parent->id, 'trip_type' => $validated['trip_type']]);
 
         return response()->json([
             'message' => 'M-Pesa payment initiated. Please check your phone and enter your PIN.',

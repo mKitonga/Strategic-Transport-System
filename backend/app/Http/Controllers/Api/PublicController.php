@@ -235,7 +235,7 @@ class PublicController extends Controller
             'updated_at' => now(),
         ]));
 
-        Log::info("Complaint acknowledgment sent to " . ($validated['passenger_phone'] ?? $validated['passenger_email']));
+        Log::info('Complaint submitted.', ['event' => 'complaint_submitted', 'complaint_id' => $complaintId, 'service_type' => $validated['service_type']]);
 
         return response()->json([
             'message' => 'Your complaint has been received. We will get back to you shortly.',

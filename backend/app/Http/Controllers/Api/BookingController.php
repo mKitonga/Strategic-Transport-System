@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class BookingController extends Controller
 {
@@ -48,6 +49,7 @@ class BookingController extends Controller
             'status' => 'active',
             'updated_at' => now(),
         ]);
+        Log::info('Driver approval state changed.', ['event' => 'booking_driver_approved', 'admin_id' => $admin->id, 'driver_id' => $driverId]);
 
         return response()->json(['message' => 'Booking driver approved successfully.']);
     }
@@ -274,10 +276,13 @@ class BookingController extends Controller
         ]);
     }
 
-    public function driverOverview(int $driverId): JsonResponse
+    public function driverOverview(Request $request, int $driverId): JsonResponse
     {
+        $driver = $request->user();
+        abort_unless($driver && $driver->role === 'booking_driver' && (int) $driver->id === $driverId, 403, 'Only this booking driver can view their trips.');
+
         return response()->json([
-            'driver_id' => $driverId,
+            'driver_id' => $driver->id,
             // Booking trip assignments are not persisted yet; never expose sample config records as driver assignments.
             'assigned_trips' => [],
         ]);
@@ -285,17 +290,17 @@ class BookingController extends Controller
 
     public function notifyArrival(Request $request, int $tripId): JsonResponse
     {
-        $validated = $request->validate([
-            'driver_id' => ['required', 'integer'],
-        ]);
+        $driver = $request->user();
+        abort_unless($driver && $driver->role === 'booking_driver', 403, 'Only booking drivers can notify arrival.');
 
         [, , $trip] = $this->findTrip($tripId);
 
         abort_unless($trip, 404, 'Trip not found.');
+        abort_unless((int) ($trip['driver_id'] ?? $trip['assigned_driver_id'] ?? 0) === (int) $driver->id, 403, 'This trip is not assigned to your account.');
 
         return response()->json([
             'message' => 'Booking admin has been notified of the driver arrival.',
-            'driver_id' => $validated['driver_id'],
+            'driver_id' => $driver->id,
             'trip_id' => $tripId,
             'major_departure_point' => $trip['major_departure_point'],
             'next_action' => 'Driver can now be considered for another trip assignment.',
@@ -343,6 +348,7 @@ class BookingController extends Controller
                 'responded_at' => now(),
                 'updated_at' => now(),
             ]);
+        Log::info('Complaint response saved.', ['event' => 'complaint_responded', 'admin_id' => $admin->id, 'complaint_id' => $id]);
 
         return response()->json([
             'message' => 'Response recorded and passenger notified.',

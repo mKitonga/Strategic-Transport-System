@@ -1,21 +1,4 @@
-async function request(path, { method = 'GET', body } = {}) {
-  const response = await fetch(path, {
-    method,
-    headers: {
-      Accept: 'application/json',
-      'Content-Type': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  })
-
-  const data = await response.json().catch(() => ({}))
-
-  if (!response.ok) {
-    throw new Error(data.message || `Request failed with status ${response.status}`)
-  }
-
-  return data
-}
+import { apiRequest as request } from './transportApi'
 
 export const fetchBookingCompanies = () => request('/api/booking/companies')
 export const fetchBookingCompany = (slug) => request(`/api/booking/companies/${slug}`)

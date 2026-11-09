@@ -12,64 +12,52 @@ class DarajaController extends Controller
 {
     public function callback(Request $request): JsonResponse
     {
-        Log::info('Daraja Callback Received', $request->all());
-
         $stkCallback = $request->input('Body.stkCallback');
-
-        if (!$stkCallback) {
+        if (! is_array($stkCallback)) {
+            Log::warning('Daraja callback rejected: missing callback or checkout request id.');
+            return response()->json(['ResultCode' => 1, 'ResultDesc' => 'Invalid payload']);
+        }
+        $checkoutRequestID = $stkCallback['CheckoutRequestID'] ?? null;
+        if (! $checkoutRequestID) {
+            Log::warning('Daraja callback rejected: missing callback or checkout request id.');
             return response()->json(['ResultCode' => 1, 'ResultDesc' => 'Invalid payload']);
         }
 
-        $merchantRequestID = $stkCallback['MerchantRequestID'] ?? null;
-        $checkoutRequestID = $stkCallback['CheckoutRequestID'] ?? null;
-        $resultCode = $stkCallback['ResultCode'] ?? 1;
+        $resultCode = (int) ($stkCallback['ResultCode'] ?? 1);
+        $payment = DB::table('school_trip_payments')->where('checkout_request_id', $checkoutRequestID)->first();
+        if (! $payment) {
+            Log::warning('Daraja callback did not match a recorded payment.', ['event' => 'payment_callback_unmatched']);
+            return response()->json(['ResultCode' => 0, 'ResultDesc' => 'Accepted']);
+        }
 
-        if ($resultCode == 0) {
-            // Success
-            $callbackMetadata = $stkCallback['CallbackMetadata']['Item'] ?? [];
-            $mpesaReceiptNumber = null;
-            $amount = null;
+        if ($payment->status !== 'submitted') {
+            return response()->json(['ResultCode' => 0, 'ResultDesc' => 'Already processed']);
+        }
 
-            foreach ($callbackMetadata as $item) {
-                if ($item['Name'] === 'MpesaReceiptNumber') {
-                    $mpesaReceiptNumber = $item['Value'];
-                }
-                if ($item['Name'] === 'Amount') {
-                    $amount = $item['Value'];
-                }
+        if ($resultCode === 0) {
+            $metadata = collect($stkCallback['CallbackMetadata']['Item'] ?? [])
+                ->keyBy('Name');
+            $amount = $metadata->get('Amount')['Value'] ?? null;
+            $receipt = $metadata->get('MpesaReceiptNumber')['Value'] ?? null;
+            if (! is_numeric($amount) || (float) $amount !== (float) (int) $payment->amount || ! $receipt) {
+                Log::warning('Daraja successful callback failed amount or receipt verification.', ['event' => 'payment_callback_validation_failed']);
+                return response()->json(['ResultCode' => 1, 'ResultDesc' => 'Payment details could not be verified']);
             }
 
-            Log::info("Mpesa Payment Success: {$mpesaReceiptNumber} Amount: {$amount}");
-
-            // Update the payment in DB if we saved CheckoutRequestID somewhere, or we can use MpesaReceiptNumber
-            // In our ParentController we generate mpesa_reference. We'll update it there.
-            // Since STK Push is async, we ideally need to map CheckoutRequestID to our DB record.
-            // For now, let's look up any 'submitted' payment that matches the phone number.
-            // Note: In production, we'd add checkout_request_id to the school_trip_payments table.
-            
-            // To be safe, we just mark matching submitted transactions. Let's do it by Phone.
-            // In a robust system, we would add 'checkout_request_id' to school_trip_payments table.
-            // I'll update the school_trip_payments table to include checkout_request_id where we initiated.
-            
-            DB::table('school_trip_payments')
-                ->where('checkout_request_id', $checkoutRequestID)
+            $updated = DB::table('school_trip_payments')
+                ->where('id', $payment->id)->where('status', 'submitted')
                 ->update([
                     'status' => 'approved',
-                    'mpesa_reference' => $mpesaReceiptNumber,
+                    'mpesa_reference' => $receipt,
                     'approved_at' => now(),
                     'updated_at' => now(),
                 ]);
-
+            Log::info('Daraja payment state changed.', ['event' => 'payment_succeeded', 'records_updated' => $updated]);
         } else {
-            // Failed or Cancelled
-            Log::warning("Mpesa Payment Failed: ResultCode {$resultCode}");
-            
-            DB::table('school_trip_payments')
-                ->where('checkout_request_id', $checkoutRequestID)
-                ->update([
-                    'status' => 'not_paid', // Revert to not_paid so user can try again
-                    'updated_at' => now(),
-                ]);
+            $updated = DB::table('school_trip_payments')
+                ->where('id', $payment->id)->where('status', 'submitted')
+                ->update(['status' => 'not_paid', 'updated_at' => now()]);
+            Log::warning('Daraja payment state changed.', ['event' => 'payment_failed', 'result_code' => $resultCode, 'records_updated' => $updated]);
         }
 
         return response()->json(['ResultCode' => 0, 'ResultDesc' => 'Success']);

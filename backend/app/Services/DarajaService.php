@@ -47,7 +47,7 @@ class DarajaService
                 ]);
         } catch (Throwable $exception) {
             $this->lastError = 'Could not connect to Daraja to authenticate. Check the server internet connection and try again.';
-            Log::error('Daraja OAuth request failed.', ['exception' => $exception->getMessage()]);
+            Log::error('Daraja OAuth request failed.', ['event' => 'daraja_auth_failed']);
 
             return null;
         }
@@ -63,7 +63,6 @@ class DarajaService
         Log::error('Daraja access token request failed.', [
             'environment' => $this->environment,
             'status' => $response->status(),
-            'response' => $response->json(),
         ]);
 
         return null;
@@ -130,7 +129,7 @@ class DarajaService
                 ->post($this->baseUrl.'/mpesa/stkpush/v1/processrequest', $payload);
         } catch (Throwable $exception) {
             $this->lastError = 'Could not connect to Daraja to send the M-Pesa prompt. Check the server internet connection and try again.';
-            Log::error('Daraja STK request failed.', ['exception' => $exception->getMessage()]);
+            Log::error('Daraja STK request failed.', ['event' => 'daraja_stk_failed']);
 
             return null;
         }
@@ -151,7 +150,6 @@ class DarajaService
         Log::error('Daraja STK push request was rejected.', [
             'environment' => $this->environment,
             'status' => $response->status(),
-            'response' => $result,
         ]);
 
         return null;

@@ -1,13 +1,13 @@
 import React, { useMemo } from 'react';
 import { Outlet, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
-import { clearStoredSession, getStoredSession } from '../services/transportApi';
+import { clearStoredSession, getStoredSession, logoutUser } from '../services/transportApi';
 import { getRoleDashboard } from '../pages/dashboard/shared/roleDashboardData';
 
 export default function ProtectedLayout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { token, user } = getStoredSession();
-  const isAuthenticated = Boolean(token && user);
+  const { user } = getStoredSession();
+  const isAuthenticated = Boolean(user);
   const activeRole = user?.role || window.localStorage.getItem('devMockRole') || 'parent';
   const roleMeta = getRoleDashboard(activeRole);
 
@@ -77,8 +77,13 @@ export default function ProtectedLayout() {
     return <Navigate to="/auth/login" replace />;
   }
 
-  const handleSignOut = (event) => {
+  const handleSignOut = async (event) => {
     event.preventDefault();
+    try {
+      await logoutUser();
+    } catch {
+      // Clear local profile state even if the server session already expired.
+    }
     clearStoredSession();
     window.localStorage.removeItem('devMockRole');
     navigate('/auth/login', { replace: true });
