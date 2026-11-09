@@ -66,7 +66,7 @@ export default function Login() {
           <input required name="password" type="password" className="form-input" placeholder="********" onChange={handleChange} value={formData.password} />
         </div>
         </> : <div className="form-group">
-          <label className="form-label">Administrator email verification code</label>
+          <label className="form-label">Email verification code</label>
           <input required name="verification_code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} autoComplete="one-time-code" className="form-input" placeholder="6 digit code" value={verificationCode} onChange={(event) => setVerificationCode(event.target.value)} />
         </div>}
 

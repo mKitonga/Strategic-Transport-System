@@ -218,7 +218,7 @@ export default function Register() {
             </div>
           ) : (
             <p className="role-panel-note">
-              Passenger registration does not require additional dropdown details. After registration, the passenger will be sent to the booking homepage.
+              Passenger registration does not require additional dropdown details. After registration, sign in and enter the verification code sent to your email.
             </p>
           )}
         </div>

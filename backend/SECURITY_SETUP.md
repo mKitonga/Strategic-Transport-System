@@ -13,7 +13,7 @@ SESSION_SECURE_COOKIE=false
 SESSION_SAME_SITE=lax
 ```
 
-For production, use HTTPS, `APP_ENV=production`, `APP_DEBUG=false`, set `SESSION_SECURE_COOKIE=true`, and replace the local CORS origins and Sanctum stateful domains with the real frontend host(s). Keep the frontend and API on the same site when using cookie authentication. Configure a working SMTP mailer: SACCO, school, and booking administrators receive a six digit email sign-in code. Password recovery also uses mail.
+For production, use HTTPS, `APP_ENV=production`, `APP_DEBUG=false`, set `SESSION_SECURE_COOKIE=true`, and replace the local CORS origins and Sanctum stateful domains with the real frontend host(s). Keep the frontend and API on the same site when using cookie authentication. Configure a working SMTP mailer: every account receives a six digit email sign-in code. Password recovery also uses mail.
 
 From the `backend` directory, apply the new MFA challenge table and refresh config after changing `.env`:
 

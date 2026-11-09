@@ -35,20 +35,13 @@ class AuthController extends Controller
             ...$registrationDetails,
         ]);
 
-        if (in_array($user->role, ['sacco_admin', 'school_admin', 'booking_admin'], true)) {
-            return response()->json(['requires_login' => true, 'message' => 'Registration successful. Sign in to verify your administrator email.'], 201);
-        }
         if ($user->status !== 'active') {
             return response()->json(['requires_login' => true, 'message' => 'Registration received. Sign in after an administrator approves your account.'], 201);
         }
 
-        Auth::login($user);
-        $request->session()->regenerate();
-
         return response()->json([
-            'message' => 'Registration successful.',
-            'redirect_path' => $definition['dashboard_path'] ?? '/dashboard',
-            'user' => $this->serializeUser($user->fresh()),
+            'requires_login' => true,
+            'message' => 'Registration successful. Sign in to verify your email and enter your account.',
         ], 201);
     }
 
@@ -69,35 +62,47 @@ class AuthController extends Controller
             return response()->json(['message' => 'Your account is pending approval or inactive.'], 403);
         }
 
-        if (in_array($user->role, ['sacco_admin', 'school_admin', 'booking_admin'], true)) {
-            $challengeId = (string) Str::uuid();
-            $code = (string) random_int(100000, 999999);
-            DB::table('admin_login_challenges')->where('user_id', $user->id)->delete();
-            DB::table('admin_login_challenges')->insert([
-                'id' => $challengeId,
-                'user_id' => $user->id,
-                'code_hash' => Hash::make($code),
-                'attempts' => 0,
-                'expires_at' => now()->addMinutes(10),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
+        $challengeId = (string) Str::uuid();
+        $code = (string) random_int(100000, 999999);
+        DB::table('admin_login_challenges')->where('user_id', $user->id)->delete();
+        DB::table('admin_login_challenges')->insert([
+            'id' => $challengeId,
+            'user_id' => $user->id,
+            'code_hash' => Hash::make($code),
+            'attempts' => 0,
+            'expires_at' => now()->addMinutes(10),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $deliveryMessage = 'A verification code has been sent to your account email.';
+        try {
             Mail::raw("Your Strategic Transport System verification code is {$code}. It expires in 10 minutes.", function ($mail) use ($user) {
-                $mail->to($user->email)->subject('Your administrator sign-in code');
+                $mail->to($user->email)->subject('Your sign-in verification code');
             });
-            Log::info('Administrator MFA challenge issued.', ['user_id' => $user->id, 'ip' => $request->ip()]);
+        } catch (\Throwable $exception) {
+            Log::error('Login verification email delivery failed.', [
+                'user_id' => $user->id,
+                'mailer' => config('mail.default'),
+                'exception_type' => get_class($exception),
+            ]);
 
-            return response()->json(['mfa_required' => true, 'challenge_id' => $challengeId, 'message' => 'A verification code has been sent to your administrator email.']);
+            if (! app()->environment('local')) {
+                DB::table('admin_login_challenges')->where('id', $challengeId)->delete();
+                return response()->json(['message' => 'The verification email could not be delivered. Please try again later.'], 503);
+            }
+
+            Log::warning('LOCAL ONLY: sign-in verification code fallback.', [
+                'challenge_id' => $challengeId,
+                'code' => $code,
+            ]);
+            $deliveryMessage = 'Email delivery failed. For local testing, find the code in backend/storage/logs/laravel.log.';
         }
-
-        Auth::login($user);
-        $request->session()->regenerate();
-        $definition = $user->role_definition;
+        Log::info('Login verification challenge issued.', ['user_id' => $user->id, 'ip' => $request->ip()]);
 
         return response()->json([
-            'message' => 'Login successful.',
-            'redirect_path' => $definition['dashboard_path'] ?? '/dashboard',
-            'user' => $this->serializeUser($user),
+            'mfa_required' => true,
+            'challenge_id' => $challengeId,
+            'message' => $deliveryMessage,
         ]);
     }
 
@@ -112,7 +117,7 @@ class AuthController extends Controller
 
         if (! Hash::check($validated['code'], $challenge->code_hash)) {
             DB::table('admin_login_challenges')->where('id', $challenge->id)->increment('attempts');
-            Log::warning('Administrator MFA verification failed.', ['user_id' => $challenge->user_id, 'ip' => $request->ip()]);
+            Log::warning('Login code verification failed.', ['user_id' => $challenge->user_id, 'ip' => $request->ip()]);
             return response()->json(['message' => 'The verification code is invalid or expired.'], 422);
         }
 
@@ -121,7 +126,7 @@ class AuthController extends Controller
         DB::table('admin_login_challenges')->where('user_id', $user->id)->delete();
         Auth::login($user);
         $request->session()->regenerate();
-        Log::info('Administrator MFA login succeeded.', ['user_id' => $user->id, 'ip' => $request->ip()]);
+        Log::info('Login code verification succeeded.', ['user_id' => $user->id, 'ip' => $request->ip()]);
 
         return response()->json([
             'message' => 'Login successful.',
