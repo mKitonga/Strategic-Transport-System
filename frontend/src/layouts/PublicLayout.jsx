@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, Outlet, useLocation } from 'react-router-dom';
+import PublicComplaintChat from '../components/PublicComplaintChat';
 
 const navLinks = [
   { name: 'Control Deck', path: '/' },
@@ -82,6 +83,7 @@ export default function PublicLayout() {
           </div>
         </footer>
       </div>
+      <PublicComplaintChat />
     </div>
   );
 }
