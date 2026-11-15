@@ -1,4 +1,4 @@
-const API_BASE = ''
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:9003').replace(/\/$/, '')
 const USER_KEY = 'strategic_transport_user'
 let csrfReady = false
 
@@ -34,7 +34,7 @@ export async function apiRequest(path, { method = 'GET', body, token } = {}) {
     method: verb,
     headers,
     body: body ? JSON.stringify(body) : undefined,
-    credentials: 'same-origin',
+    credentials: 'include',
   })
 
   const data = await response.json().catch(() => ({}))
