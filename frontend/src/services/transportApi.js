@@ -1,4 +1,6 @@
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:9003').replace(/\/$/, '')
+// Use the Vite same-origin proxy in development and the app's origin in production.
+// This keeps Sanctum session cookies and CSRF requests on one origin.
+const API_BASE = ''
 const USER_KEY = 'strategic_transport_user'
 let csrfReady = false
 
@@ -30,12 +32,17 @@ export async function apiRequest(path, { method = 'GET', body, token } = {}) {
     headers.Authorization = `Bearer ${token}`
   }
 
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: verb,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-    credentials: 'include',
-  })
+  let response
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      method: verb,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'same-origin',
+    })
+  } catch {
+    throw new Error('Cannot reach the backend. Start Laravel and confirm the Vite proxy target in frontend/vite.config.js.')
+  }
 
   const data = await response.json().catch(() => ({}))
 
