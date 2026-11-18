@@ -141,14 +141,18 @@ function DirectoryDetails({ item, directoryType }) {
     order: index + 1,
   })));
   const heading = directoryType === 'sacco' ? 'SACCO' : 'School';
+  const tabs = [
+    { id: 'routes', label: 'Routes', count: routes.length },
+    { id: 'terminals', label: 'Terminals', count: terminals.length },
+    ...(directoryType === 'sacco' ? [{ id: 'fares', label: 'Fares', count: routes.reduce((total, route) => total + (route.fares?.length || 0), 0) }] : []),
+  ];
+  const fareRows = routes.flatMap((route) => (route.fares || []).map((fare) => ({ ...fare, routeName: route.name })));
+  const formatFare = (amount) => amount === null || amount === undefined ? '—' : `KES ${Number(amount).toLocaleString('en-KE')}`;
 
   return (
-    <section className="info-card" style={{ padding: 0, overflow: 'hidden', border: '1px solid var(--color-border)' }} aria-label={`${heading} routes and terminals`}>
+    <section className="info-card" style={{ padding: 0, overflow: 'hidden', border: '1px solid var(--color-border)' }} aria-label={`${heading} routes, terminals and fares`}>
       <div role="tablist" aria-label={`${heading} details`} style={{ display: 'flex', gap: 4, padding: '0 14px', borderBottom: '1px solid var(--color-border)', overflowX: 'auto' }}>
-        {[
-          { id: 'routes', label: 'Routes', count: routes.length },
-          { id: 'terminals', label: 'Terminals', count: terminals.length },
-        ].map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -170,13 +174,21 @@ function DirectoryDetails({ item, directoryType }) {
 
       <div id={`${directoryType}-details-${item.id}-${activeTab}`} role="tabpanel" style={{ padding: 16 }}>
         <div className="info-topline" style={{ marginBottom: 12 }}>
-          <strong>{item.name} · {activeTab === 'routes' ? 'Routes' : 'Terminals'}</strong>
-          <span className="page-subtitle" style={{ margin: 0 }}>{activeTab === 'routes' ? `${routes.length} routes` : `${terminals.length} terminals`}</span>
+          <strong>{item.name} · {activeTab === 'routes' ? 'Routes' : activeTab === 'terminals' ? 'Terminals' : 'Fares'}</strong>
+          <span className="page-subtitle" style={{ margin: 0 }}>{activeTab === 'routes' ? `${routes.length} routes` : activeTab === 'terminals' ? `${terminals.length} terminals` : `${fareRows.length} fares`}</span>
         </div>
         <div className="data-table-wrap">
           {activeTab === 'routes' ? (
             <table className="data-table">
-              <thead><tr><th>#</th><th>Route</th><th>Terminals</th><th>Terminal sequence</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Route</th>
+                  <th>Terminals</th>
+                  <th>Terminal sequence</th>
+                  <th>Fares</th>
+                  </tr>
+                  </thead>
               <tbody>
                 {routes.map((route, index) => (
                   <tr key={route.id}>
@@ -184,14 +196,26 @@ function DirectoryDetails({ item, directoryType }) {
                     <td>{route.name}</td>
                     <td>{route.terminals?.length || 0}</td>
                     <td>{route.terminals?.length ? route.terminals.join(' → ') : 'No terminals registered'}</td>
+                    <td>{route.fares?.length || 0}</td>
                   </tr>
                 ))}
-                {routes.length === 0 && <tr><td colSpan="4" className="empty-table-cell">No routes registered for this {heading.toLowerCase()}.</td></tr>}
+                {
+                routes.length === 0 && <tr>
+                  <td colSpan="5" className="empty-table-cell">No routes registered for this {heading.toLowerCase()}.</td>
+                  </tr>
+                  }
               </tbody>
             </table>
-          ) : (
+          ) : activeTab === 'terminals' ? (
             <table className="data-table">
-              <thead><tr><th>#</th><th>Terminal</th><th>Route</th><th>Order</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Terminal</th>
+                  <th>Route</th>
+                  <th>Order</th>
+                  </tr>
+                  </thead>
               <tbody>
                 {terminals.map((terminal, index) => (
                   <tr key={`${terminal.routeId}-${terminal.order}`}>
@@ -201,7 +225,30 @@ function DirectoryDetails({ item, directoryType }) {
                     <td>{terminal.order}</td>
                   </tr>
                 ))}
-                {terminals.length === 0 && <tr><td colSpan="4" className="empty-table-cell">No terminals registered for this {heading.toLowerCase()}.</td></tr>}
+                {
+                terminals.length === 0 &&
+                <tr>
+                  <td colSpan="4" className="empty-table-cell">No terminals registered for this {heading.toLowerCase()}.</td>
+                    </tr>
+                }
+              </tbody>
+            </table>
+          ) : (
+            <table className="data-table">
+              <thead><tr><th>#</th><th>Route</th><th>From</th><th>To</th><th>Standard fare</th><th>Peak fare</th><th>Off-peak fare</th></tr></thead>
+              <tbody>
+                {fareRows.map((fare, index) => (
+                  <tr key={fare.id}>
+                    <td>{index + 1}</td>
+                    <td>{fare.routeName}</td>
+                    <td>{fare.from_terminal_name}</td>
+                    <td>{fare.to_terminal_name}</td>
+                    <td>{formatFare(fare.amount)}</td>
+                    <td>{formatFare(fare.peak_amount)}</td>
+                    <td>{formatFare(fare.off_peak_amount)}</td>
+                  </tr>
+                ))}
+                {fareRows.length === 0 && <tr><td colSpan="7" className="empty-table-cell">No fares have been registered for this SACCO yet.</td></tr>}
               </tbody>
             </table>
           )}

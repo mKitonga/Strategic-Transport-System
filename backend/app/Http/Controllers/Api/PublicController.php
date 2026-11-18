@@ -93,6 +93,24 @@ class PublicController extends Controller
             ->orderBy('terminal_order')
             ->get()
             ->groupBy('sacco_route_id');
+        $saccoFares = DB::table('sacco_fares as fares')
+            ->join('route_terminals as from_terminal', 'from_terminal.id', '=', 'fares.from_terminal_id')
+            ->join('route_terminals as to_terminal', 'to_terminal.id', '=', 'fares.to_terminal_id')
+            ->whereColumn('from_terminal.sacco_route_id', 'fares.sacco_route_id')
+            ->whereColumn('to_terminal.sacco_route_id', 'fares.sacco_route_id')
+            ->whereIn('fares.sacco_route_id', $saccoRoutes->pluck('id'))
+            ->orderBy('from_terminal.terminal_order')
+            ->orderBy('to_terminal.terminal_order')
+            ->get([
+                'fares.id',
+                'fares.sacco_route_id',
+                'fares.amount',
+                'fares.peak_amount',
+                'fares.off_peak_amount',
+                'from_terminal.terminal_name as from_terminal_name',
+                'to_terminal.terminal_name as to_terminal_name',
+            ])
+            ->groupBy('sacco_route_id');
 
         $schoolAdmins = DB::table('users')
             ->where('role', 'school_admin')
@@ -122,6 +140,14 @@ class PublicController extends Controller
                     'id' => $route->id,
                     'name' => $route->route_name,
                     'terminals' => ($saccoTerminals->get($route->id) ?? collect())->pluck('terminal_name')->values(),
+                    'fares' => ($saccoFares->get($route->id) ?? collect())->map(fn ($fare) => [
+                        'id' => $fare->id,
+                        'from_terminal_name' => $fare->from_terminal_name,
+                        'to_terminal_name' => $fare->to_terminal_name,
+                        'amount' => (float) $fare->amount,
+                        'peak_amount' => $fare->peak_amount !== null ? (float) $fare->peak_amount : null,
+                        'off_peak_amount' => $fare->off_peak_amount !== null ? (float) $fare->off_peak_amount : null,
+                    ])->values(),
                 ])->values(),
             ])->values(),
             'schools' => $schoolAdmins->map(fn ($admin) => [
